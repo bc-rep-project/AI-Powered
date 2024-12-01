@@ -1,0 +1,243 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "System Overview",
+      "type": "row",
+      "panels": [
+        {
+          "title": "Request Rate",
+          "type": "graph",
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "rate(recommendation_requests_total[5m])",
+              "legendFormat": "{{endpoint}}"
+            }
+          ],
+          "yaxes": [
+            {
+              "format": "short",
+              "label": "Requests/sec"
+            }
+          ]
+        },
+        {
+          "title": "Response Time",
+          "type": "graph",
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "rate(recommendation_response_time_seconds_sum[5m]) / rate(recommendation_response_time_seconds_count[5m])",
+              "legendFormat": "{{endpoint}}"
+            }
+          ],
+          "yaxes": [
+            {
+              "format": "s",
+              "label": "Response Time"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Recommendation Quality",
+      "type": "row",
+      "panels": [
+        {
+          "title": "Click-Through Rate",
+          "type": "gauge",
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "recommendation_quality{metric='ctr'}"
+            }
+          ],
+          "options": {
+            "minValue": 0,
+            "maxValue": 1,
+            "thresholds": [
+              { "value": 0, "color": "red" },
+              { "value": 0.1, "color": "yellow" },
+              { "value": 0.2, "color": "green" }
+            ]
+          }
+        },
+        {
+          "title": "User Satisfaction",
+          "type": "gauge",
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "recommendation_quality{metric='satisfaction'}"
+            }
+          ],
+          "options": {
+            "minValue": 0,
+            "maxValue": 5,
+            "thresholds": [
+              { "value": 0, "color": "red" },
+              { "value": 3, "color": "yellow" },
+              { "value": 4, "color": "green" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "A/B Testing",
+      "type": "row",
+      "panels": [
+        {
+          "title": "Experiment Results",
+          "type": "table",
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "experiment_metrics",
+              "format": "table",
+              "instant": true
+            }
+          ],
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "__name__": true,
+                  "job": true,
+                  "instance": true
+                },
+                "indexByName": {},
+                "renameByName": {
+                  "experiment": "Experiment",
+                  "variant": "Variant",
+                  "ctr": "CTR",
+                  "conversion_rate": "Conv. Rate"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Model Performance",
+      "type": "row",
+      "panels": [
+        {
+          "title": "Training Time",
+          "type": "graph",
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "model_training_time_seconds",
+              "legendFormat": "Training Duration"
+            }
+          ],
+          "yaxes": [
+            {
+              "format": "s",
+              "label": "Duration"
+            }
+          ]
+        },
+        {
+          "title": "Model Metrics",
+          "type": "graph",
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "model_metrics",
+              "legendFormat": "{{metric}}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Cache Performance",
+      "type": "row",
+      "panels": [
+        {
+          "title": "Cache Hit Rate",
+          "type": "graph",
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "rate(cache_hits_total[5m]) / (rate(cache_hits_total[5m]) + rate(cache_misses_total[5m]))",
+              "legendFormat": "{{cache_type}}"
+            }
+          ],
+          "yaxes": [
+            {
+              "format": "percentunit",
+              "label": "Hit Rate"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "User Activity",
+      "type": "row",
+      "panels": [
+        {
+          "title": "Active Users",
+          "type": "stat",
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "active_users_total"
+            }
+          ]
+        },
+        {
+          "title": "User Interactions",
+          "type": "graph",
+          "datasource": "Prometheus",
+          "targets": [
+            {
+              "expr": "rate(user_interactions_total[5m])",
+              "legendFormat": "{{type}}"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 27,
+  "style": "dark",
+  "tags": ["recommendations", "monitoring"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Recommendation System Dashboard",
+  "uid": "recommendation_system",
+  "version": 1
+} 

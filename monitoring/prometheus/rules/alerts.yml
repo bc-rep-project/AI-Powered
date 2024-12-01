@@ -1,0 +1,83 @@
+groups:
+  - name: recommendation_engine
+    rules:
+      # High error rate alert
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(recommendation_requests_total{status="500"}[5m])) 
+          / 
+          sum(rate(recommendation_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: High error rate detected
+          description: Error rate is above 5% for the last 5 minutes
+
+      # Slow response time alert
+      - alert: SlowResponseTime
+        expr: |
+          rate(recommendation_response_time_seconds_sum[5m]) 
+          / 
+          rate(recommendation_response_time_seconds_count[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Slow response time detected
+          description: Average response time is above 1 second for the last 5 minutes
+
+      # Low recommendation quality alert
+      - alert: LowRecommendationQuality
+        expr: recommendation_quality{metric="ctr"} < 0.1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Low recommendation quality detected
+          description: Click-through rate is below 10% for the last 15 minutes
+
+      # Model training failure alert
+      - alert: ModelTrainingFailure
+        expr: time() - model_last_training_success > 86400
+        labels:
+          severity: critical
+        annotations:
+          summary: Model training failure detected
+          description: No successful model training in the last 24 hours
+
+      # High cache miss rate alert
+      - alert: HighCacheMissRate
+        expr: |
+          rate(cache_misses_total[5m]) 
+          / 
+          (rate(cache_hits_total[5m]) + rate(cache_misses_total[5m])) > 0.3
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: High cache miss rate detected
+          description: Cache miss rate is above 30% for the last 10 minutes
+
+      # Low active users alert
+      - alert: LowActiveUsers
+        expr: active_users_total < 100
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: Low active user count detected
+          description: Active user count is below 100 for the last 30 minutes
+
+      # Experiment imbalance alert
+      - alert: ExperimentImbalance
+        expr: |
+          max(experiment_variant_traffic) 
+          / 
+          min(experiment_variant_traffic) > 1.2
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Experiment traffic imbalance detected
+          description: Traffic distribution between variants differs by more than 20% 
