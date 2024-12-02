@@ -1,4 +1,5 @@
 [build]
+name = "ai-recommendation-api"
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
