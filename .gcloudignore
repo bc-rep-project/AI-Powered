@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+__pycache__/
+*.pyc
+test/
+*.md
+!README.md
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.vscode/
+k8s/
+monitoring/
+dashboards/ 
