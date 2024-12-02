@@ -8,6 +8,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: production
 
     steps:
       - name: Checkout
@@ -17,11 +18,12 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 16.x
+          cache: 'npm'
 
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
       - name: Deploy to Railway
-        run: railway up --service ai-recommendation-api
+        run: railway up
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
