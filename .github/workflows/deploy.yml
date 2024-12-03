@@ -28,15 +28,13 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Link Railway Project
-        run: |
-          railway link --project ai-content-recommendation
+      - name: Login to Railway
+        run: railway login
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
+      - name: Link Railway Project
+        run: railway link --project ai-content-recommendation
+
       - name: Deploy to Railway
-        run: |
-          railway up --service ai-recommendation-api
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+        run: railway up --service ai-recommendation-api
