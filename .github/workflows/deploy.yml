@@ -29,7 +29,7 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Login to Railway
-        run: railway login
+        run: echo "$RAILWAY_TOKEN" | railway login
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
