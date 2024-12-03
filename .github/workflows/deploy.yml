@@ -19,9 +19,16 @@ jobs:
         with:
           node-version: 16.x
 
+      - name: List directory contents
+        run: |
+          pwd
+          ls -la
+          ls -la frontend
+
       - name: Install Frontend Dependencies
-        working-directory: frontend
-        run: npm install
+        run: |
+          cd frontend
+          npm install
 
       - name: Install Railway CLI
         run: npm install -g @railway/cli
