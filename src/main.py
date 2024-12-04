@@ -12,9 +12,12 @@ app = FastAPI(title="AI Content Recommendation API")
 # CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Replace with your frontend URL in production
+    allow_origins=[
+        "https://ai-powered-content-recommendation-frontend.vercel.app",  # Production frontend
+        "http://localhost:3000",  # Local development
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
