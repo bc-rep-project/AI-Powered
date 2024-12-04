@@ -9,4 +9,7 @@ restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
 
 [deploy.envs]
-PYTHON_VERSION = "3.9" 
+PYTHON_VERSION = "3.9"
+JWT_SECRET_KEY = "your-secret-key-here"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = "30" 
