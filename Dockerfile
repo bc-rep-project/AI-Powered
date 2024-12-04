@@ -5,9 +5,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
-RUN chmod +x start.sh
+COPY ./src /app/src
 
-EXPOSE 8000
+ENV PORT=8000
+ENV PYTHONPATH=/app
 
-CMD ["./start.sh"] 
+CMD uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000} 
