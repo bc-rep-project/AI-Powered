@@ -59,9 +59,9 @@ app.add_middleware(
 )
 
 # Create API router for recommendations
-recommendations_router = APIRouter()
+api_router = APIRouter(prefix="/api/v1")
 
-@recommendations_router.get("/recommendations")
+@api_router.get("/recommendations")
 async def get_recommendations(current_user: str = Depends(oauth2_scheme)):
     """Get personalized recommendations."""
     logger.info("Received recommendations request")
@@ -203,5 +203,5 @@ async def root():
         "docs_url": "/docs"
     }
 
-# Mount the recommendations router under /api/v1
-app.mount("/api/v1", recommendations_router)
+# Include the API router
+app.include_router(api_router)
