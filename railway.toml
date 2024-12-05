@@ -8,7 +8,8 @@ startCommand = "python start.py"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
 healthcheckPath = "/health"
-healthcheckTimeout = 10
+healthcheckTimeout = 30
+healthcheckInterval = 15
 
 [deploy.envs]
 PYTHON_VERSION = "3.9"

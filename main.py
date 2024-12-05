@@ -68,7 +68,7 @@ async def shutdown_event():
 # Health check endpoint
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint for Railway"""
     try:
         # Check database connection
         if not await Database.ping_db():
@@ -76,12 +76,17 @@ async def health_check():
                 status_code=503,
                 detail="Database connection failed"
             )
-        return {"status": "healthy", "timestamp": datetime.utcnow()}
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "database": "connected",
+            "service": "online"
+        }
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
         raise HTTPException(
             status_code=503,
-            detail=f"Service unhealthy: {str(e)}"
+            detail=str(e)
         )
 
 # Root endpoint
