@@ -25,20 +25,6 @@ app = FastAPI(
     description="Provides personalized content recommendations based on user behavior and preferences."
 )
 
-# CORS configuration
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://ai-powered-content-recommendation-frontend.vercel.app",
-        "https://ai-powered-content-recommendation-frontend-kslis1lqp.vercel.app"
-    ],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=600,  # Cache preflight requests for 10 minutes
-)
-
 # Authentication settings
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secure-secret-key")
@@ -58,10 +44,10 @@ dummy_interactions = [
 # Train model with dummy data
 recommendation_model.train(dummy_interactions, epochs=5, batch_size=32)
 
-# Create API router
-api_router = APIRouter(prefix="/api/v1")
+# Create API router for recommendations
+recommendations_router = APIRouter(prefix="/api/v1")
 
-@api_router.get("/recommendations")
+@recommendations_router.get("/recommendations")
 async def get_recommendations(current_user: str = Depends(oauth2_scheme)):
     """Get personalized recommendations."""
     logger.info("Received recommendations request")
@@ -113,9 +99,6 @@ async def get_recommendations(current_user: str = Depends(oauth2_scheme)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error generating recommendations"
         )
-
-# Include API router
-app.include_router(api_router)
 
 # Token endpoint
 @app.post("/token")
@@ -205,3 +188,20 @@ async def root():
         "version": "1.0.0",
         "docs_url": "/docs"
     }
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://ai-powered-content-recommendation-frontend.vercel.app",
+        "https://ai-powered-content-recommendation-frontend-kslis1lqp.vercel.app"
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,  # Cache preflight requests for 10 minutes
+)
+
+# Include routers
+app.include_router(recommendations_router)
