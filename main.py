@@ -4,6 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
+@app.get("/")
+async def root():
+    return {"message": "Welcome to AI Content Recommendation API", "status": "online"}
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
