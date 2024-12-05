@@ -1,64 +1,75 @@
 #!/bin/bash
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+# Test script for AI Content Recommendation API
+BASE_URL="https://ai-powered-production.up.railway.app"
+TEST_EMAIL="test@example.com"
+TEST_PASSWORD="password"
+TEST_NAME="Test User"
 
-BASE_URL="https://diplomatic-heart-production.up.railway.app"
-FRONTEND_URL="https://ai-powered-content-recommendation-frontend.vercel.app"
+echo -e "\nTesting Health Check Endpoint..."
+echo "Testing endpoint: GET $BASE_URL/health"
+HEALTH_RESPONSE=$(curl -s "$BASE_URL/health")
+echo "Success! Response:"
+echo $HEALTH_RESPONSE | jq '.'
 
-# Function to make API requests
-make_request() {
-    local method=$1
-    local endpoint=$2
-    local headers=$3
-    local data=$4
+echo -e "\nTesting Root Endpoint..."
+echo "Testing endpoint: GET $BASE_URL/"
+ROOT_RESPONSE=$(curl -s "$BASE_URL/")
+echo "Success! Response:"
+echo $ROOT_RESPONSE | jq '.'
 
-    echo -e "${CYAN}Testing endpoint: $method $BASE_URL$endpoint${NC}"
-    
-    if [ -n "$data" ]; then
-        response=$(curl -s -X $method "$BASE_URL$endpoint" $headers -d "$data")
-    else
-        response=$(curl -s -X $method "$BASE_URL$endpoint" $headers)
-    fi
-    
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}Success! Response:${NC}"
-        echo $response | jq '.' 2>/dev/null || echo $response
-    else
-        echo -e "${RED}Error occurred!${NC}"
-        echo $response
-    fi
-    echo
-}
+echo -e "\nTesting User Registration..."
+echo "Testing endpoint: POST $BASE_URL/api/v1/auth/register"
+REGISTER_RESPONSE=$(curl -s -X POST "$BASE_URL/api/v1/auth/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PASSWORD\",\"name\":\"$TEST_NAME\"}")
 
-# Test Health Check
-echo -e "${YELLOW}Testing Health Check Endpoint...${NC}"
-make_request "GET" "/health"
+if [[ $REGISTER_RESPONSE == *"error"* ]]; then
+  echo "Note: Registration failed (user might already exist). Response:"
+else
+  echo "Success! Response:"
+fi
+echo $REGISTER_RESPONSE | jq '.'
 
-# Test Root Endpoint
-echo -e "${YELLOW}Testing Root Endpoint...${NC}"
-make_request "GET" "/"
+echo -e "\nTesting Authentication..."
+echo "Testing endpoint: POST $BASE_URL/token"
+TOKEN_RESPONSE=$(curl -s -X POST "$BASE_URL/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=$TEST_EMAIL&password=$TEST_PASSWORD&grant_type=password")
 
-# Test Authentication
-echo -e "${YELLOW}Testing Authentication...${NC}"
-auth_response=$(curl -s -X POST "$BASE_URL/token" \
-    -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "username=test@example.com&password=password")
-echo $auth_response | jq '.' 2>/dev/null || echo $auth_response
-echo
-
-# Extract token if authentication successful
-token=$(echo $auth_response | jq -r '.access_token' 2>/dev/null)
-if [ "$token" != "null" ] && [ -n "$token" ]; then
-    # Test Protected Endpoints
-    echo -e "${YELLOW}Testing Protected Endpoints...${NC}"
-    make_request "GET" "/recommendations" "-H 'Authorization: Bearer $token'"
+if [[ $TOKEN_RESPONSE == *"error"* ]]; then
+  echo "Error occurred! Response:"
+  echo $TOKEN_RESPONSE | jq '.'
+  exit 1
+else
+  echo "Success! Response:"
+  echo $TOKEN_RESPONSE | jq '.'
+  TOKEN=$(echo $TOKEN_RESPONSE | jq -r '.access_token')
 fi
 
-# Test CORS
-echo -e "${YELLOW}Testing CORS Configuration...${NC}"
-make_request "OPTIONS" "/token" "-H 'Origin: $FRONTEND_URL' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type'"
+echo -e "\nTesting Protected Endpoints..."
+echo "Using token: $TOKEN"
+
+echo "Testing endpoint: GET $BASE_URL/api/v1/recommendations"
+RECOMMENDATIONS_RESPONSE=$(curl -s -X GET "$BASE_URL/api/v1/recommendations" \
+  -H "Authorization: Bearer $TOKEN")
+
+if [[ $RECOMMENDATIONS_RESPONSE == *"error"* ]]; then
+  echo "Error occurred! Response:"
+else
+  echo "Success! Response:"
+fi
+echo $RECOMMENDATIONS_RESPONSE | jq '.'
+
+echo -e "\nTesting CORS Configuration..."
+echo "Testing endpoint: OPTIONS $BASE_URL/token"
+CORS_RESPONSE=$(curl -s -X OPTIONS "$BASE_URL/token" \
+  -H "Origin: https://ai-powered-content-recommendation-frontend.vercel.app" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: content-type,authorization" \
+  -v 2>&1)
+
+echo "Response headers:"
+echo "$CORS_RESPONSE" | grep -i "< access-control"
+
+echo "OK"

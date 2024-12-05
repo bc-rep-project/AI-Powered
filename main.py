@@ -1,8 +1,9 @@
 import os
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.routing import APIRouter
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional, Dict
 import jwt
@@ -45,14 +46,17 @@ dummy_interactions = [
 recommendation_model.train(dummy_interactions, epochs=5, batch_size=32)
 
 # CORS configuration
+origins = [
+    "https://ai-powered-content-recommendation-frontend.vercel.app",
+    "https://ai-powered-content-recommendation-frontend-kslis1lqp.vercel.app",
+    "http://localhost:3000"  # For local development
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://ai-powered-content-recommendation-frontend.vercel.app",
-        "https://ai-powered-content-recommendation-frontend-kslis1lqp.vercel.app"
-    ],
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
     max_age=600,  # Cache preflight requests for 10 minutes
@@ -68,9 +72,14 @@ class UserResponse(BaseModel):
     email: EmailStr
     name: Optional[str] = None
 
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
+    expires_in: int
+
 # Create API routers
-api_router = APIRouter(prefix="/api/v1")
-auth_router = APIRouter(prefix="/auth")
+api_router = APIRouter()
+auth_router = APIRouter()
 
 @auth_router.post("/register", response_model=UserResponse)
 async def register_user(user: UserRegister):
@@ -161,7 +170,7 @@ async def get_recommendations(current_user: str = Depends(oauth2_scheme)):
         )
 
 # Token endpoint
-@app.post("/token")
+@app.post("/token", response_model=TokenResponse)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     """Login to get access token."""
     logger.info(f"Login attempt for user: {form_data.username}")
@@ -182,11 +191,11 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 data={"sub": form_data.username},
                 expires_delta=access_token_expires
             )
-            response_data = {
-                "access_token": access_token,
-                "token_type": "bearer",
-                "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
-            }
+            response_data = TokenResponse(
+                access_token=access_token,
+                token_type="bearer",
+                expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            )
             logger.info(f"Login successful for user: {form_data.username}")
             return response_data
         else:
@@ -202,6 +211,20 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Login error: {str(e)}"
         )
+
+@app.options("/{path:path}")
+async def options_handler(request: Request):
+    """Handle CORS preflight requests."""
+    response = JSONResponse(content={})
+    origin = request.headers.get("Origin")
+    
+    if origin in origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        response.headers["Access-Control-Max-Age"] = "600"  # 10 minutes
+        
+    return response
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create JWT access token."""
@@ -250,5 +273,5 @@ async def root():
     }
 
 # Include the API routers
-api_router.include_router(auth_router, prefix="/auth")
-app.include_router(api_router)
+app.include_router(api_router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v1/auth")

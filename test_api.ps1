@@ -1,88 +1,89 @@
-# Test API endpoints for AI Content Recommendation System
+# Test script for AI Content Recommendation API
 $baseUrl = "https://ai-powered-production.up.railway.app"
-$frontendUrl = "https://ai-powered-content-recommendation-frontend.vercel.app"
+$testEmail = "test@example.com"
+$testPassword = "password"
+$testName = "Test User"
 
-# Function to make API requests with error handling
-function Invoke-APIRequest {
-    param (
-        [string]$Uri,
-        [string]$Method = "GET",
-        [hashtable]$Headers = @{},
-        [string]$Body = "",
-        [string]$ContentType = "application/json"
-    )
-    
-    try {
-        $params = @{
-            Uri = $Uri
-            Method = $Method
-            Headers = $Headers
-        }
-        
-        if ($Body -ne "") {
-            $params.Add("Body", $Body)
-            $params.Add("ContentType", $ContentType)
-        }
-        
-        Write-Host "Testing endpoint: $Method $Uri" -ForegroundColor Cyan
-        if ($Body -ne "") {
-            Write-Host "Request Body: $Body" -ForegroundColor Cyan
-        }
-        $response = Invoke-RestMethod @params
-        Write-Host "Success! Response:" -ForegroundColor Green
-        $response | ConvertTo-Json -Depth 10
-        return $response
-    }
-    catch {
-        Write-Host "Error occurred!" -ForegroundColor Red
-        Write-Host "Status Code: $($_.Exception.Response.StatusCode.value__)" -ForegroundColor Red
-        Write-Host "Status Description: $($_.Exception.Response.StatusDescription)" -ForegroundColor Red
-        
-        try {
-            $errorResponse = $_.ErrorDetails.Message | ConvertFrom-Json
-            Write-Host "Error Details: $($errorResponse | ConvertTo-Json)" -ForegroundColor Red
-        }
-        catch {
-            Write-Host "Raw Error: $_" -ForegroundColor Red
-        }
-        return $null
-    }
+Write-Host "`nTesting Health Check Endpoint..."
+Write-Host "Testing endpoint: GET $baseUrl/health"
+$healthResponse = Invoke-RestMethod -Uri "$baseUrl/health" -Method Get
+Write-Host "Success! Response:"
+$healthResponse | ConvertTo-Json
+
+Write-Host "`nTesting Root Endpoint..."
+Write-Host "Testing endpoint: GET $baseUrl/"
+$rootResponse = Invoke-RestMethod -Uri "$baseUrl/" -Method Get
+Write-Host "Success! Response:"
+$rootResponse | ConvertTo-Json
+
+Write-Host "`nTesting User Registration..."
+Write-Host "Testing endpoint: POST $baseUrl/api/v1/auth/register"
+$registerBody = @{
+    email = $testEmail
+    password = $testPassword
+    name = $testName
+} | ConvertTo-Json
+
+try {
+    $registerResponse = Invoke-RestMethod -Uri "$baseUrl/api/v1/auth/register" -Method Post -Body $registerBody -ContentType "application/json"
+    Write-Host "Success! Response:"
+    $registerResponse | ConvertTo-Json
+} catch {
+    Write-Host "Note: Registration failed (user might already exist). Error:"
+    Write-Host $_.Exception.Response.StatusCode.Value__
+    Write-Host $_.Exception.Response.StatusDescription
+    $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+    Write-Host $reader.ReadToEnd()
 }
 
-# Test Health Check
-Write-Host "`nTesting Health Check Endpoint..." -ForegroundColor Yellow
-Invoke-APIRequest -Uri "$baseUrl/health"
-
-# Test Root Endpoint
-Write-Host "`nTesting Root Endpoint..." -ForegroundColor Yellow
-Invoke-APIRequest -Uri "$baseUrl/"
-
-# Test Authentication
-Write-Host "`nTesting Authentication..." -ForegroundColor Yellow
-$formData = @{
-    username = "test@example.com"
-    password = "password"
-    grant_type = "password"
-}
-$authBody = ($formData.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join "&"
-$token = Invoke-APIRequest -Uri "$baseUrl/token" -Method "POST" -Body $authBody -ContentType "application/x-www-form-urlencoded"
-
-if ($token -and $token.access_token) {
-    $authHeader = @{
-        "Authorization" = "Bearer $($token.access_token)"
-    }
-    
-    # Test Protected Endpoints
-    Write-Host "`nTesting Protected Endpoints..." -ForegroundColor Yellow
-    Write-Host "Using token: $($token.access_token)" -ForegroundColor Cyan
-    Invoke-APIRequest -Uri "$baseUrl/api/v1/recommendations" -Headers $authHeader -Method "GET"
+Write-Host "`nTesting Authentication..."
+Write-Host "Testing endpoint: POST $baseUrl/token"
+$tokenBody = "username=$testEmail&password=$testPassword&grant_type=password"
+try {
+    $tokenResponse = Invoke-RestMethod -Uri "$baseUrl/token" -Method Post -Body $tokenBody -ContentType "application/x-www-form-urlencoded"
+    Write-Host "Success! Response:"
+    $tokenResponse | ConvertTo-Json
+    $token = $tokenResponse.access_token
+} catch {
+    Write-Host "Error occurred!"
+    Write-Host "Status Code:" $_.Exception.Response.StatusCode.Value__
+    Write-Host "Status Description:" $_.Exception.Response.StatusDescription
+    $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+    Write-Host "Error Details:" $reader.ReadToEnd()
+    exit
 }
 
-# Test CORS
-Write-Host "`nTesting CORS Configuration..." -ForegroundColor Yellow
-$corsHeaders = @{
-    "Origin" = $frontendUrl
-    "Access-Control-Request-Method" = "POST"
-    "Access-Control-Request-Headers" = "content-type,authorization"
+Write-Host "`nTesting Protected Endpoints..."
+Write-Host "Using token: $token"
+
+Write-Host "Testing endpoint: GET $baseUrl/api/v1/recommendations"
+$headers = @{
+    "Authorization" = "Bearer $token"
 }
-Invoke-APIRequest -Uri "$baseUrl/token" -Method "OPTIONS" -Headers $corsHeaders
+try {
+    $recommendationsResponse = Invoke-RestMethod -Uri "$baseUrl/api/v1/recommendations" -Method Get -Headers $headers
+    Write-Host "Success! Response:"
+    $recommendationsResponse | ConvertTo-Json -Depth 4
+} catch {
+    Write-Host "Error occurred!"
+    Write-Host "Status Code:" $_.Exception.Response.StatusCode.Value__
+    Write-Host "Status Description:" $_.Exception.Response.StatusDescription
+    $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+    Write-Host "Error Details:" $reader.ReadToEnd()
+}
+
+Write-Host "`nTesting CORS Configuration..."
+Write-Host "Testing endpoint: OPTIONS $baseUrl/token"
+try {
+    $corsResponse = Invoke-RestMethod -Uri "$baseUrl/token" -Method Options
+    Write-Host "Success! Response:"
+    $corsResponse | ConvertTo-Json
+} catch {
+    Write-Host "Error occurred!"
+    Write-Host "Status Code:" $_.Exception.Response.StatusCode.Value__
+    Write-Host "Status Description:" $_.Exception.Response.StatusDescription
+    $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+    Write-Host "Error Details:" $reader.ReadToEnd()
+}
+
+Write-Host "OK"
