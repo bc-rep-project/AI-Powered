@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, HTTPException, Depends, status, Request
+from fastapi import FastAPI, HTTPException, Depends, status, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.routing import APIRouter
@@ -63,6 +63,10 @@ app.add_middleware(
 )
 
 # Pydantic models for request/response
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
 class UserRegister(BaseModel):
     email: EmailStr
     password: str
@@ -171,24 +175,27 @@ async def get_recommendations(current_user: str = Depends(oauth2_scheme)):
 
 # Token endpoint
 @app.post("/token", response_model=TokenResponse)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+async def login_for_access_token(
+    email: str = Form(...),
+    password: str = Form(...),
+):
     """Login to get access token."""
-    logger.info(f"Login attempt for user: {form_data.username}")
+    logger.info(f"Login attempt for user: {email}")
     
-    if not form_data.username or not form_data.password:
-        logger.error("Missing username or password")
+    if not email or not password:
+        logger.error("Missing email or password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing username or password",
+            detail="Missing email or password",
         )
     
     try:
         # Here you should verify against your database
         # For now, using a simple check (replace with actual DB verification)
-        if form_data.username == "test@example.com" and form_data.password == "password":
+        if email == "test@example.com" and password == "password":
             access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
             access_token = create_access_token(
-                data={"sub": form_data.username},
+                data={"sub": email},
                 expires_delta=access_token_expires
             )
             response_data = TokenResponse(
@@ -196,17 +203,17 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 token_type="bearer",
                 expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
             )
-            logger.info(f"Login successful for user: {form_data.username}")
+            logger.info(f"Login successful for user: {email}")
             return response_data
         else:
-            logger.warning(f"Invalid credentials for user: {form_data.username}")
+            logger.warning(f"Invalid credentials for user: {email}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect username or password",
+                detail="Incorrect email or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
     except Exception as e:
-        logger.error(f"Login error for user {form_data.username}: {str(e)}")
+        logger.error(f"Login error for user {email}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Login error: {str(e)}"
