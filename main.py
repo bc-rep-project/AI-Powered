@@ -10,6 +10,7 @@ import logging
 from src.database import Database
 from src.models.recommendation_model import RecommendationModel
 from src.models.data_models import Content, Interaction, UserProfile, RecommendationHistory
+from fastapi.routing import APIRouter
 
 # Configure logging
 logging.basicConfig(
@@ -47,25 +48,45 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 # Initialize recommendation model
 recommendation_model = RecommendationModel()
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize connections on startup"""
-    try:
-        # Initialize database connection
-        await Database.connect_db()
-        logger.info("Database connection initialized")
-    except Exception as e:
-        logger.error(f"Failed to initialize database connection: {str(e)}")
-        raise
+# API Routes
+api_router = APIRouter(prefix="/api/v1")
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Close connections on shutdown"""
+@api_router.get("/recommendations")
+async def get_recommendations(current_user: str = Depends(oauth2_scheme)):
+    """Get personalized recommendations."""
     try:
-        await Database.close_db()
-        logger.info("Database connection closed")
+        # Extract user email from token
+        payload = jwt.decode(current_user, SECRET_KEY, algorithms=[ALGORITHM])
+        user_email = payload.get("sub")
+        if not user_email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials"
+            )
+        
+        # Get recommendations using the model
+        recommendations = recommendation_model.get_recommendations(user_email, n=10)
+        
+        # Format response
+        return {
+            "recommendations": recommendations,
+            "user": user_email,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except jwt.JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials"
+        )
     except Exception as e:
-        logger.error(f"Error closing database connection: {str(e)}")
+        logger.error(f"Error generating recommendations: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error generating recommendations"
+        )
+
+# Include API router
+app.include_router(api_router)
 
 # Health check endpoint
 @app.get("/health")
@@ -106,28 +127,45 @@ async def root():
 @app.post("/token")
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     """Login to get access token."""
+    logger.info(f"Login attempt for user: {form_data.username}")
+    
     # Add your user verification logic here
     if not form_data.username or not form_data.password:
+        logger.error("Missing username or password")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Missing username or password",
         )
     
-    # Here you should verify against your database
-    # For now, using a simple check (replace with actual DB verification)
-    if form_data.username == "test@example.com" and form_data.password == "password":
-        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(
-            data={"sub": form_data.username},
-            expires_delta=access_token_expires
+    try:
+        # Here you should verify against your database
+        # For now, using a simple check (replace with actual DB verification)
+        if form_data.username == "test@example.com" and form_data.password == "password":
+            access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+            access_token = create_access_token(
+                data={"sub": form_data.username},
+                expires_delta=access_token_expires
+            )
+            response_data = {
+                "access_token": access_token,
+                "token_type": "bearer",
+                "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            }
+            logger.info(f"Login successful for user: {form_data.username}")
+            return response_data
+        else:
+            logger.warning(f"Invalid credentials for user: {form_data.username}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    except Exception as e:
+        logger.error(f"Login error for user {form_data.username}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Login error: {str(e)}"
         )
-        return {"access_token": access_token, "token_type": "bearer"}
-    
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Incorrect username or password",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create JWT access token."""
