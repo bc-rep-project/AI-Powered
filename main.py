@@ -58,8 +58,54 @@ app.add_middleware(
     max_age=600,  # Cache preflight requests for 10 minutes
 )
 
-# Create API router for recommendations
+# Pydantic models for request/response
+class UserRegister(BaseModel):
+    email: EmailStr
+    password: str
+    name: Optional[str] = None
+
+class UserResponse(BaseModel):
+    email: EmailStr
+    name: Optional[str] = None
+
+# Create API routers
 api_router = APIRouter(prefix="/api/v1")
+auth_router = APIRouter(prefix="/auth")
+
+@auth_router.post("/register", response_model=UserResponse)
+async def register_user(user: UserRegister):
+    """Register a new user."""
+    logger.info(f"Registration attempt for user: {user.email}")
+    try:
+        # Check if user already exists
+        existing_user = await Database.find_user(user.email)
+        if existing_user:
+            logger.warning(f"User already exists: {user.email}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User already exists"
+            )
+        
+        # Hash password and create user
+        hashed_password = Database.hash_password(user.password)
+        new_user = {
+            "email": user.email,
+            "password": hashed_password,
+            "name": user.name,
+            "created_at": datetime.utcnow()
+        }
+        
+        # Save user to database
+        await Database.create_user(new_user)
+        logger.info(f"User registered successfully: {user.email}")
+        
+        return UserResponse(email=user.email, name=user.name)
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 @api_router.get("/recommendations")
 async def get_recommendations(current_user: str = Depends(oauth2_scheme)):
@@ -203,5 +249,6 @@ async def root():
         "docs_url": "/docs"
     }
 
-# Include the API router
+# Include the API routers
+api_router.include_router(auth_router, prefix="/auth")
 app.include_router(api_router)
