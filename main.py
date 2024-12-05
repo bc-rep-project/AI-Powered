@@ -44,8 +44,22 @@ dummy_interactions = [
 # Train model with dummy data
 recommendation_model.train(dummy_interactions, epochs=5, batch_size=32)
 
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://ai-powered-content-recommendation-frontend.vercel.app",
+        "https://ai-powered-content-recommendation-frontend-kslis1lqp.vercel.app"
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,  # Cache preflight requests for 10 minutes
+)
+
 # Create API router for recommendations
-recommendations_router = APIRouter(prefix="/api/v1")
+recommendations_router = APIRouter()
 
 @recommendations_router.get("/recommendations")
 async def get_recommendations(current_user: str = Depends(oauth2_scheme)):
@@ -189,19 +203,5 @@ async def root():
         "docs_url": "/docs"
     }
 
-# CORS configuration
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://ai-powered-content-recommendation-frontend.vercel.app",
-        "https://ai-powered-content-recommendation-frontend-kslis1lqp.vercel.app"
-    ],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=600,  # Cache preflight requests for 10 minutes
-)
-
-# Include routers
-app.include_router(recommendations_router)
+# Mount the recommendations router under /api/v1
+app.mount("/api/v1", recommendations_router)
