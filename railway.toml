@@ -7,6 +7,8 @@ dockerfilePath = "Dockerfile"
 startCommand = "python start.py"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
+healthcheckPath = "/"
+healthcheckTimeout = 10
 
 [deploy.envs]
 PYTHON_VERSION = "3.9"
@@ -15,4 +17,5 @@ JWT_SECRET_KEY = "your-secure-secret-key"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = "30"
 MONGODB_URL = "${{Mongo.MONGODB_URL}}"
-ENVIRONMENT = "production" 
+ENVIRONMENT = "production"
+PYTHONUNBUFFERED = "1" 

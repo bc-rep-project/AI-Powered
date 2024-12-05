@@ -2,6 +2,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 from typing import Optional
 from datetime import datetime, timedelta
+import urllib.parse
+import asyncio
 
 class Database:
     client: Optional[AsyncIOMotorClient] = None
@@ -10,21 +12,56 @@ class Database:
     @classmethod
     async def connect_db(cls):
         """Connect to MongoDB"""
-        cls.client = AsyncIOMotorClient(os.getenv("MONGODB_URL", "mongodb://localhost:27017"))
-        cls.db = cls.client.recommendation_db
-        
-        # Create indexes
+        try:
+            mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+            
+            # Handle URL encoding for special characters
+            if '@' in mongodb_url:
+                parts = urllib.parse.urlparse(mongodb_url)
+                userpass = urllib.parse.unquote(parts.netloc.split('@')[0])
+                if ':' in userpass:
+                    username, password = userpass.split(':')
+                    encoded_userpass = f"{urllib.parse.quote_plus(username)}:{urllib.parse.quote_plus(password)}"
+                    netloc = f"{encoded_userpass}@{parts.netloc.split('@')[1]}"
+                    parts = parts._replace(netloc=netloc)
+                    mongodb_url = urllib.parse.urlunparse(parts)
+            
+            # Connect with retry logic
+            for attempt in range(3):
+                try:
+                    cls.client = AsyncIOMotorClient(
+                        mongodb_url,
+                        serverSelectionTimeoutMS=5000,
+                        connectTimeoutMS=5000
+                    )
+                    # Test the connection
+                    await cls.client.admin.command('ping')
+                    print("MongoDB connection successful")
+                    break
+                except Exception as e:
+                    print(f"Connection attempt {attempt + 1} failed: {str(e)}")
+                    if attempt == 2:  # Last attempt
+                        raise Exception(f"Failed to connect to MongoDB after 3 attempts: {str(e)}")
+                    await asyncio.sleep(1)
+            
+            cls.db = cls.client.recommendation_db
         await cls._create_indexes()
+            
+        except Exception as e:
+            print(f"Database connection error: {str(e)}")
+            raise
     
     @classmethod
     async def close_db(cls):
         """Close MongoDB connection"""
         if cls.client:
             cls.client.close()
+            print("MongoDB connection closed")
     
     @classmethod
     async def _create_indexes(cls):
         """Create database indexes"""
+        try:
         # Users collection indexes
         await cls.db.users.create_index("email", unique=True)
         await cls.db.users.create_index("id", unique=True)
@@ -45,15 +82,28 @@ class Database:
         await cls.db.recommendation_history.create_index("user_id")
         await cls.db.recommendation_history.create_index("timestamp")
         
-        # Metrics collection indexes
-        await cls.db.metrics.create_index("user_id")
-        await cls.db.metrics.create_index("timestamp")
-        await cls.db.metrics.create_index([("user_id", 1), ("timestamp", 1)])
-        
-        # A/B testing indexes
-        await cls.db.ab_tests.create_index("name", unique=True)
-        await cls.db.ab_tests.create_index("status")
-        await cls.db.user_variants.create_index([("user_id", 1), ("test_name", 1)], unique=True)
+            print("Database indexes created successfully")
+            
+        except Exception as e:
+            print(f"Error creating indexes: {str(e)}")
+            raise
+
+    @classmethod
+    async def get_db(cls):
+        """Get database instance"""
+        if not cls.client:
+            await cls.connect_db()
+        return cls.db
+
+    @classmethod
+    async def ping_db(cls):
+        """Test database connection"""
+        try:
+            await cls.client.admin.command('ping')
+            return True
+        except Exception as e:
+            print(f"Database ping failed: {str(e)}")
+            return False
     
     @classmethod
     async def get_trending_content(cls, limit: int = 10, time_window_hours: int = 24):
