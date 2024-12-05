@@ -4,6 +4,9 @@ from typing import Optional
 from datetime import datetime, timedelta
 import urllib.parse
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Database:
     client: Optional[AsyncIOMotorClient] = None
@@ -13,18 +16,12 @@ class Database:
     async def connect_db(cls):
         """Connect to MongoDB"""
         try:
-            mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+            # Get MongoDB URL from environment
+            mongodb_url = os.getenv("MONGODB_URL")
+            if not mongodb_url:
+                raise ValueError("MONGODB_URL environment variable is not set")
             
-            # Handle URL encoding for special characters
-            if '@' in mongodb_url:
-                parts = urllib.parse.urlparse(mongodb_url)
-                userpass = urllib.parse.unquote(parts.netloc.split('@')[0])
-                if ':' in userpass:
-                    username, password = userpass.split(':')
-                    encoded_userpass = f"{urllib.parse.quote_plus(username)}:{urllib.parse.quote_plus(password)}"
-                    netloc = f"{encoded_userpass}@{parts.netloc.split('@')[1]}"
-                    parts = parts._replace(netloc=netloc)
-                    mongodb_url = urllib.parse.urlunparse(parts)
+            logger.info("Attempting to connect to MongoDB...")
             
             # Connect with retry logic
             for attempt in range(3):
@@ -32,23 +29,30 @@ class Database:
                     cls.client = AsyncIOMotorClient(
                         mongodb_url,
                         serverSelectionTimeoutMS=5000,
-                        connectTimeoutMS=5000
+                        connectTimeoutMS=5000,
+                        retryWrites=True,
+                        retryReads=True
                     )
                     # Test the connection
                     await cls.client.admin.command('ping')
-                    print("MongoDB connection successful")
+                    logger.info("Successfully connected to MongoDB")
                     break
                 except Exception as e:
-                    print(f"Connection attempt {attempt + 1} failed: {str(e)}")
+                    logger.error(f"Connection attempt {attempt + 1} failed: {str(e)}")
                     if attempt == 2:  # Last attempt
                         raise Exception(f"Failed to connect to MongoDB after 3 attempts: {str(e)}")
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(2)  # Wait longer between retries
             
-            cls.db = cls.client.recommendation_db
+            # Get database name from URL or use default
+            db_name = urllib.parse.urlparse(mongodb_url).path.strip('/') or "recommendation_db"
+            cls.db = cls.client[db_name]
+            
+            # Create indexes
             await cls._create_indexes()
+            logger.info(f"Connected to database: {db_name}")
             
         except Exception as e:
-            print(f"Database connection error: {str(e)}")
+            logger.error(f"Database connection error: {str(e)}")
             raise
 
     @classmethod
@@ -56,7 +60,7 @@ class Database:
         """Close MongoDB connection"""
         if cls.client:
             cls.client.close()
-            print("MongoDB connection closed")
+            logger.info("MongoDB connection closed")
 
     @classmethod
     async def _create_indexes(cls):
@@ -82,9 +86,9 @@ class Database:
             await cls.db.recommendation_history.create_index("user_id")
             await cls.db.recommendation_history.create_index("timestamp")
             
-            print("Database indexes created successfully")
+            logger.info("Database indexes created successfully")
         except Exception as e:
-            print(f"Error creating indexes: {str(e)}")
+            logger.error(f"Error creating indexes: {str(e)}")
             raise
 
     @classmethod
@@ -98,10 +102,12 @@ class Database:
     async def ping_db(cls):
         """Test database connection"""
         try:
+            if not cls.client:
+                await cls.connect_db()
             await cls.client.admin.command('ping')
             return True
         except Exception as e:
-            print(f"Database ping failed: {str(e)}")
+            logger.error(f"Database ping failed: {str(e)}")
             return False
 
     @classmethod
