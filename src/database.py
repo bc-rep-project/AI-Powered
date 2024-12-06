@@ -19,41 +19,49 @@ class Database:
             # Get MongoDB URL from environment
             mongodb_url = os.getenv("MONGODB_URL")
             if not mongodb_url:
-                raise ValueError("MONGODB_URL environment variable is not set")
+                logger.error("MONGODB_URL environment variable is not set")
+                return False
             
             logger.info("Attempting to connect to MongoDB...")
             
-            # Connect with retry logic
-            for attempt in range(3):
+            # Connect with improved retry logic and connection pooling
+            for attempt in range(5):  # Increased retries
                 try:
                     cls.client = AsyncIOMotorClient(
                         mongodb_url,
                         serverSelectionTimeoutMS=5000,
                         connectTimeoutMS=5000,
+                        maxPoolSize=50,
+                        minPoolSize=10,
+                        maxIdleTimeMS=50000,
                         retryWrites=True,
-                        retryReads=True
+                        retryReads=True,
+                        waitQueueTimeoutMS=5000
                     )
                     # Test the connection
                     await cls.client.admin.command('ping')
                     logger.info("Successfully connected to MongoDB")
-                    break
+                    
+                    # Get database name from URL or use default
+                    db_name = urllib.parse.urlparse(mongodb_url).path.strip('/') or "recommendation_db"
+                    cls.db = cls.client[db_name]
+                    
+                    # Create indexes
+                    await cls._create_indexes()
+                    return True
                 except Exception as e:
                     logger.error(f"Connection attempt {attempt + 1} failed: {str(e)}")
-                    if attempt == 2:  # Last attempt
-                        raise Exception(f"Failed to connect to MongoDB after 3 attempts: {str(e)}")
-                    await asyncio.sleep(2)  # Wait longer between retries
+                    if attempt == 4:  # Last attempt
+                        logger.error(f"Failed to connect to MongoDB after 5 attempts: {str(e)}")
+                        return False
+                    wait_time = (attempt + 1) * 2  # Exponential backoff
+                    await asyncio.sleep(wait_time)
             
-            # Get database name from URL or use default
-            db_name = urllib.parse.urlparse(mongodb_url).path.strip('/') or "recommendation_db"
-            cls.db = cls.client[db_name]
-            
-            # Create indexes
-            await cls._create_indexes()
-            logger.info(f"Connected to database: {db_name}")
+            return False
             
         except Exception as e:
-            logger.error(f"Database connection error: {str(e)}")
-            raise
+            logger.error(f"Database connection failed: {str(e)}")
+            return False
 
     @classmethod
     async def close_db(cls):
@@ -103,7 +111,8 @@ class Database:
         """Test database connection"""
         try:
             if not cls.client:
-                await cls.connect_db()
+                if not await cls.connect_db():
+                    return False
             await cls.client.admin.command('ping')
             return True
         except Exception as e:
@@ -187,3 +196,37 @@ class Database:
         except Exception as e:
             print(f"Error getting category recommendations: {str(e)}")
             return []
+
+    @classmethod
+    async def find_user(cls, email: str):
+        """Find user by email"""
+        try:
+            if not cls.client:
+                if not await cls.connect_db():
+                    return None
+            
+            user = await cls.db.users.find_one({"email": email})
+            return user
+        except Exception as e:
+            logger.error(f"Error finding user: {str(e)}")
+            return None
+
+    @classmethod
+    async def create_user(cls, user_data: dict):
+        """Create a new user"""
+        try:
+            if not cls.client:
+                if not await cls.connect_db():
+                    raise Exception("Database connection failed")
+            
+            result = await cls.db.users.insert_one(user_data)
+            return result.inserted_id
+        except Exception as e:
+            logger.error(f"Error creating user: {str(e)}")
+            raise
+
+    @staticmethod
+    def hash_password(password: str) -> str:
+        """Hash password using bcrypt"""
+        import bcrypt
+        return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()

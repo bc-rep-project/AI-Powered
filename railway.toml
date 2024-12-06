@@ -6,17 +6,16 @@ dockerfilePath = "Dockerfile"
 [deploy]
 startCommand = "python start.py"
 restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 10
+restartPolicyMaxRetries = 3
 healthcheckPath = "/health"
-healthcheckTimeout = 30
-healthcheckInterval = 15
+healthcheckTimeout = 10
+healthcheckInterval = 30
+numReplicas = 1
+healthcheckProtocol = "http"
 
 [deploy.envs]
 PYTHON_VERSION = "3.9"
 PORT = "8080"
-JWT_SECRET_KEY = "your-secure-secret-key"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = "30"
-MONGODB_URL = "${MONGODB_URL}"
 ENVIRONMENT = "production"
-PYTHONUNBUFFERED = "1" 
+PYTHONUNBUFFERED = "1"
+LOG_LEVEL = "INFO"
