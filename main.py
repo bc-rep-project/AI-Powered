@@ -49,6 +49,10 @@ app.add_middleware(
     max_age=600,  # Cache preflight requests for 10 minutes
 )
 
+# Mount the routers
+app.include_router(api_router)
+app.include_router(auth_router)
+
 # Authentication settings
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secure-secret-key")
@@ -194,6 +198,35 @@ async def get_recommendations(current_user: str = Depends(oauth2_scheme)):
             detail="Error generating recommendations"
         )
 
+@app.get("/")
+async def root():
+    """Root endpoint."""
+    return {
+        "status": "success",
+        "message": "AI Content Recommendation API",
+        "version": "1.0.0",
+        "docs_url": "/docs"
+    }
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    try:
+        # Check database connection
+        db_status = await Database.ping_db()
+        return {
+            "status": "healthy",
+            "database": "connected" if db_status else "disconnected",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
 # Token endpoint
 @app.post("/token", response_model=TokenResponse)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -247,47 +280,3 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
-
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    """Health check endpoint for Railway deployment"""
-    try:
-        # Check database connection
-        await Database.ping_db()
-        
-        # Check recommendation model status
-        model_status = recommendation_model.get_status()
-        
-        return {
-            "status": "healthy",
-            "timestamp": datetime.utcnow().isoformat(),
-            "database": "connected",
-            "model_status": model_status,
-            "environment": os.getenv("ENVIRONMENT", "production")
-        }
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "unhealthy",
-                "timestamp": datetime.utcnow().isoformat(),
-                "error": str(e)
-            }
-        )
-
-# Root endpoint
-@app.get("/")
-async def root():
-    """Root endpoint"""
-    return {
-        "message": "Welcome to AI Content Recommendation API",
-        "status": "online",
-        "version": "1.0.0",
-        "docs_url": "/docs"
-    }
-
-# Include routers at the end of the file
-app.include_router(auth_router)
-app.include_router(api_router)
