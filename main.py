@@ -53,12 +53,12 @@ app.add_middleware(
 )
 
 # Authentication settings
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secure-secret-key")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# Initialize recommendation model with dummy data
+# Initialize recommendation model
 recommendation_model = RecommendationModel()
 
 # Pydantic models
@@ -115,7 +115,7 @@ async def health_check():
         )
 
 # Authentication endpoints
-@auth_router.post("/register", response_model=UserResponse)
+@auth_router.post("/register")
 async def register_user(user: UserRegister):
     """Register a new user."""
     logger.info(f"Registration attempt for user: {user.email}")
@@ -152,7 +152,7 @@ async def register_user(user: UserRegister):
             detail=str(e)
         )
 
-@app.post("/token", response_model=TokenResponse)
+@app.post("/token")
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     """Login to get access token."""
     logger.info(f"Login attempt for user: {form_data.username}")
@@ -195,7 +195,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         )
 
 # API endpoints
-@api_router.get("/recommendations", response_model=Dict)
+@api_router.get("/recommendations")
 async def get_recommendations(current_user: str = Depends(oauth2_scheme)):
     """Get personalized recommendations."""
     logger.info("Received recommendations request")
