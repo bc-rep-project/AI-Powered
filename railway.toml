@@ -2,13 +2,14 @@
 name = "ai-recommendation-api"
 builder = "nixpacks"
 dockerfilePath = "Dockerfile"
+buildCommand = "pip install -r requirements.txt"
 
 [deploy]
-startCommand = "uvicorn app:app --host 0.0.0.0 --port $PORT"
-restartPolicyType = "ON_FAILURE"
+startCommand = "uvicorn src.main:app --host 0.0.0.0 --port $PORT"
+restartPolicyType = "on-failure"
 restartPolicyMaxRetries = 3
 healthcheckPath = "/health"
-healthcheckTimeout = 10
+healthcheckTimeout = 100
 healthcheckInterval = 30
 numReplicas = 1
 healthcheckProtocol = "http"

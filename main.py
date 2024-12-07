@@ -23,16 +23,12 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI(
     title="AI Content Recommendation API",
-    description="Provides personalized content recommendations based on user behavior and preferences.",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json"
+    description="Provides personalized content recommendations based on user behavior and preferences."
 )
 
-# Create API routers
-api_router = APIRouter()
-auth_router = APIRouter()
+# Create API routers with proper prefixes and tags
+api_router = APIRouter(prefix="/api/v1", tags=["api"])
+auth_router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 # CORS configuration
 origins = [
@@ -40,28 +36,39 @@ origins = [
     "https://ai-powered-content-recommendation-frontend-kslis1lqp.vercel.app",
     "http://localhost:3000",  # For local development
     "https://diplomatic-heart-production.up.railway.app",  # Railway backend
-    "https://ai-powered-production.up.railway.app",  # Railway production
-    "*"  # Allow all origins for testing
+    "https://ai-powered-production.up.railway.app"  # Railway production
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,  # Cache preflight requests for 10 minutes
 )
 
 # Authentication settings
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secure-secret-key")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# Initialize recommendation model
+# Initialize recommendation model with dummy data
 recommendation_model = RecommendationModel()
 
-# Pydantic models
+# Add dummy data for testing
+dummy_interactions = [
+    {"user_id": "test@example.com", "content_id": "content1", "interaction_type": "view", "timestamp": "2024-01-01"},
+    {"user_id": "test@example.com", "content_id": "content2", "interaction_type": "like", "timestamp": "2024-01-02"},
+    {"user_id": "test@example.com", "content_id": "content3", "interaction_type": "view", "timestamp": "2024-01-03"},
+]
+
+# Train model with dummy data
+recommendation_model.train(dummy_interactions, epochs=5, batch_size=32)
+
+# Pydantic models for request/response
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
@@ -80,42 +87,7 @@ class TokenResponse(BaseModel):
     token_type: str
     expires_in: int
 
-# Root endpoint
-@app.get("/")
-async def root():
-    """Root endpoint."""
-    return {
-        "status": "success",
-        "message": "AI Content Recommendation API",
-        "version": "1.0.0",
-        "docs_url": "/docs"
-    }
-
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    try:
-        # Check database connection
-        db_status = await Database.ping_db()
-        return {
-            "status": "healthy",
-            "database": "connected" if db_status else "disconnected",
-            "timestamp": datetime.utcnow().isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "unhealthy",
-                "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        )
-
-# Authentication endpoints
-@auth_router.post("/register")
+@auth_router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register_user(user: UserRegister):
     """Register a new user."""
     logger.info(f"Registration attempt for user: {user.email}")
@@ -152,50 +124,7 @@ async def register_user(user: UserRegister):
             detail=str(e)
         )
 
-@app.post("/token")
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    """Login to get access token."""
-    logger.info(f"Login attempt for user: {form_data.username}")
-    
-    if not form_data.username or not form_data.password:
-        logger.error("Missing username or password")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing username or password",
-        )
-    
-    try:
-        # Here you should verify against your database
-        # For now, using a simple check (replace with actual DB verification)
-        if form_data.username == "test@example.com" and form_data.password == "testpassword123":
-            access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-            access_token = create_access_token(
-                data={"sub": form_data.username},
-                expires_delta=access_token_expires
-            )
-            response_data = TokenResponse(
-                access_token=access_token,
-                token_type="bearer",
-                expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
-            )
-            logger.info(f"Login successful for user: {form_data.username}")
-            return response_data
-        else:
-            logger.warning(f"Invalid credentials for user: {form_data.username}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect username or password",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-    except Exception as e:
-        logger.error(f"Login error for user {form_data.username}: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Login error: {str(e)}"
-        )
-
-# API endpoints
-@api_router.get("/recommendations")
+@api_router.get("/recommendations", response_model=Dict)
 async def get_recommendations(current_user: str = Depends(oauth2_scheme)):
     """Get personalized recommendations."""
     logger.info("Received recommendations request")
@@ -240,8 +169,8 @@ async def get_recommendations(current_user: str = Depends(oauth2_scheme)):
             "timestamp": datetime.utcnow().isoformat(),
             "metadata": {
                 "count": len(recommendations),
-                "model_version": "1.0.0",
-                "algorithm": "collaborative_filtering"
+                "model_version": recommendation_model.version,
+                "algorithm": recommendation_model.algorithm_type
             }
         }
         logger.info(f"Generated {len(recommendations)} recommendations")
@@ -265,6 +194,49 @@ async def get_recommendations(current_user: str = Depends(oauth2_scheme)):
             detail="Error generating recommendations"
         )
 
+# Token endpoint
+@app.post("/token", response_model=TokenResponse)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    """Login to get access token."""
+    logger.info(f"Login attempt for user: {form_data.username}")
+    
+    if not form_data.username or not form_data.password:
+        logger.error("Missing username or password")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing username or password",
+        )
+    
+    try:
+        # Here you should verify against your database
+        # For now, using a simple check (replace with actual DB verification)
+        if form_data.username == "test@example.com" and form_data.password == "password":
+            access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+            access_token = create_access_token(
+                data={"sub": form_data.username},
+                expires_delta=access_token_expires
+            )
+            response_data = TokenResponse(
+                access_token=access_token,
+                token_type="bearer",
+                expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            )
+            logger.info(f"Login successful for user: {form_data.username}")
+            return response_data
+        else:
+            logger.warning(f"Invalid credentials for user: {form_data.username}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    except Exception as e:
+        logger.error(f"Login error for user {form_data.username}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Login error: {str(e)}"
+        )
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create JWT access token."""
     to_encode = data.copy()
@@ -275,7 +247,46 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Railway deployment"""
+    try:
+        # Check database connection
+        await Database.ping_db()
+        
+        # Check recommendation model status
+        model_status = recommendation_model.get_status()
+        
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "database": "connected",
+            "model_status": model_status,
+            "environment": os.getenv("ENVIRONMENT", "production")
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "timestamp": datetime.utcnow().isoformat(),
+                "error": str(e)
+            }
+        )
 
-# Mount the routers
-app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
-app.include_router(api_router, prefix="/api/v1", tags=["api"])
+# Root endpoint
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "message": "Welcome to AI Content Recommendation API",
+        "status": "online",
+        "version": "1.0.0",
+        "docs_url": "/docs"
+    }
+# Include routers at the end of the file
+app.include_router(auth_router)
+app.include_router(api_router)
+
