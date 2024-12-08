@@ -19,30 +19,30 @@ except Exception as e:
     raise
 
 # MongoDB setup
+mongodb = None
 try:
     if settings.MONGODB_URI:
         mongo_client = AsyncIOMotorClient(settings.MONGODB_URI)
-        mongodb = mongo_client.get_database()
+        mongodb = mongo_client[settings.MONGODB_DB_NAME]
         logger.info("Successfully connected to MongoDB")
     else:
-        logger.warning("MONGODB_URI not configured")
-        mongodb = None
+        logger.warning("MongoDB connection not configured")
 except Exception as e:
     logger.error(f"MongoDB connection error: {str(e)}")
-    mongodb = None
 
 # Redis setup
+redis_client = None
 try:
     redis_client = Redis(
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,
+        password=settings.REDIS_PASSWORD,
         decode_responses=True
     )
     redis_client.ping()
     logger.info("Successfully connected to Redis")
 except Exception as e:
     logger.error(f"Redis connection error: {str(e)}")
-    redis_client = None
 
 # Database dependency
 async def get_db():
