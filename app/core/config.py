@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pydantic import validator
 
 class Settings(BaseSettings):
@@ -37,6 +37,21 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    
+    # Neural Network Configuration
+    EMBEDDING_DIM: int = 128
+    HIDDEN_LAYERS: List[int] = [256, 128, 64]
+    LEARNING_RATE: float = 0.001
+    BATCH_SIZE: int = 32
+    NUM_EPOCHS: int = 10
+    MAX_SEQUENCE_LENGTH: int = 100
+    DROPOUT_RATE: float = 0.2
+    
+    # Model Training
+    MODEL_CHECKPOINT_DIR: str = "models/checkpoints"
+    MODEL_SAVE_PATH: str = "models/recommender"
+    TRAIN_TEST_SPLIT: float = 0.2
+    VALIDATION_SPLIT: float = 0.1
     
     # Service URLs
     FRONTEND_URL: str = "http://localhost:3000"

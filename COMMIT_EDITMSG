@@ -1,0 +1,18 @@
+docs: add comprehensive project documentation
+
+- Add detailed project overview and features
+- Document tech stack and infrastructure components
+- Include practical applications and use cases
+- Add setup instructions and architecture details
+- Create frontend documentation with tech stack and features
+- Include deployment and development guidelines
+
+Backend changes:
+- Document FastAPI, PostgreSQL, MongoDB, Redis setup
+- Add infrastructure and monitoring details
+- Include practical applications in various domains
+
+Frontend changes:
+- Document Next.js, TypeScript, Tailwind CSS setup
+- Add component library and state management details
+- Include performance optimization guidelines 
