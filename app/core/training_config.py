@@ -1,33 +1,34 @@
-from pydantic import BaseSettings
-from typing import List
+from pydantic_settings import BaseSettings
+from typing import List, Optional
 
 class TrainingConfig(BaseSettings):
-    # Model hyperparameters
-    BATCH_SIZE: int = 64
-    EPOCHS: int = 10
-    LEARNING_RATE: float = 0.001
+    # Model Architecture
     EMBEDDING_DIM: int = 128
-    
-    # Training settings
-    MIN_INTERACTIONS: int = 5  # Minimum interactions per user/item
-    VALIDATION_SPLIT: float = 0.2
-    TEST_SPLIT: float = 0.1
-    
-    # Model architecture
     HIDDEN_LAYERS: List[int] = [256, 128, 64]
     DROPOUT_RATE: float = 0.2
+    ACTIVATION: str = "relu"
     
-    # Training schedule
-    RETRAIN_INTERVAL_HOURS: int = 24
-    MIN_NEW_INTERACTIONS: int = 100  # Minimum new interactions before retraining
+    # Training Parameters
+    LEARNING_RATE: float = 0.001
+    BATCH_SIZE: int = 32
+    NUM_EPOCHS: int = 10
+    VALIDATION_SPLIT: float = 0.2
+    EARLY_STOPPING_PATIENCE: int = 3
     
-    # Model evaluation metrics
-    METRICS = ["precision@k", "recall@k", "ndcg@k"]
-    K_VALUES = [5, 10, 20]
+    # Data Processing
+    MAX_SEQUENCE_LENGTH: int = 100
+    VOCAB_SIZE: int = 10000
+    PAD_TOKEN: str = "<PAD>"
+    UNK_TOKEN: str = "<UNK>"
     
-    # Model checkpointing
-    CHECKPOINT_DIR: str = "models/checkpoints"
-    BEST_MODEL_PATH: str = "models/best_model"
+    # Paths
+    MODEL_CHECKPOINT_DIR: str = "models/checkpoints"
+    MODEL_SAVE_PATH: str = "models/recommender"
+    TENSORBOARD_LOG_DIR: str = "logs/tensorboard"
+    
+    # Training Resources
+    USE_GPU: bool = False
+    NUM_WORKERS: int = 4
     
     class Config:
         env_file = ".env"
