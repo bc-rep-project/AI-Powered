@@ -12,4 +12,16 @@ services:
           name: postgres
           property: connectionString
       - key: MONGODB_URI
-        value: mongodb+srv://[USERNAME]:[PASSWORD]@[CLUSTER].mongodb.net/[DB_NAME] 
+        value: mongodb+srv://[USERNAME]:[PASSWORD]@[CLUSTER].mongodb.net/[DB_NAME]
+      # Supabase Configuration
+      - key: SUPABASE_URL
+        value: your-project-ref
+      - key: SUPABASE_KEY
+        value: your-supabase-anon-key
+      - key: SUPABASE_JWT_SECRET
+        value: your-supabase-jwt-secret
+      # Redis Configuration
+      - key: REDIS_HOST
+        value: your-redis-host
+      - key: REDIS_PORT
+        value: "6379"
