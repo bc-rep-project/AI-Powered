@@ -4,6 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from motor.motor_asyncio import AsyncIOMotorClient
 from redis import Redis
 from app.core.config import settings
+import logging
 
 # PostgreSQL setup
 engine = create_engine(settings.DATABASE_URL)
@@ -11,8 +12,13 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 # MongoDB setup
-mongodb_client = AsyncIOMotorClient(settings.MONGODB_URL)
-mongodb = mongodb_client[settings.MONGODB_DB]
+try:
+    mongo_client = AsyncIOMotorClient(settings.MONGODB_URI)
+    mongodb = mongo_client.get_database()
+    logging.info("Successfully connected to MongoDB")
+except Exception as e:
+    logging.error(f"MongoDB connection error: {str(e)}")
+    mongodb = None
 
 # Redis setup
 redis_client = Redis(
@@ -28,6 +34,11 @@ async def get_db():
         yield db
     finally:
         db.close()
+
+async def get_mongodb():
+    if mongodb is None:
+        raise ConnectionError("MongoDB connection not available")
+    return mongodb
 
 # MongoDB collections
 user_interactions = mongodb.user_interactions

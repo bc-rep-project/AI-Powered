@@ -120,11 +120,24 @@ logger = logging.getLogger(__name__)
 async def startup_event():
     """Start background tasks on application startup."""
     logger.info("Starting application...")
-    # Test database connection
-    from app.database import test_database_connection
-    if not test_database_connection():
-        logger.error("Failed to connect to database")
-        raise RuntimeError("Database connection failed")
+    
+    # Test database connections
+    try:
+        # Test PostgreSQL
+        from app.database import test_database_connection
+        if not test_database_connection():
+            logger.error("Failed to connect to PostgreSQL")
+            raise RuntimeError("PostgreSQL connection failed")
+            
+        # Test MongoDB
+        from app.db.database import get_mongodb
+        mongodb = await get_mongodb()
+        await mongodb.command('ping')
+        logger.info("Successfully connected to MongoDB")
+        
+    except Exception as e:
+        logger.error(f"Database connection error: {str(e)}")
+        raise
     
     # Start training task manager
     asyncio.create_task(task_manager.start())
@@ -151,14 +164,34 @@ async def root():
 @app.get("/health", tags=["Health"])
 async def health_check():
     """
-    Basic health check endpoint.
-    Returns status 'healthy' if the service is running properly.
+    Health check endpoint that verifies service and database connections.
     """
-    return {
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "version": "1.0.0"
-    }
+    try:
+        # Check PostgreSQL
+        from app.database import test_database_connection
+        postgres_ok = test_database_connection()
+        
+        # Check MongoDB
+        from app.db.database import get_mongodb
+        mongodb = await get_mongodb()
+        await mongodb.command('ping')
+        mongo_ok = True
+        
+        return {
+            "status": "healthy" if postgres_ok and mongo_ok else "degraded",
+            "timestamp": datetime.now().isoformat(),
+            "version": "1.0.0",
+            "databases": {
+                "postgresql": "connected" if postgres_ok else "failed",
+                "mongodb": "connected" if mongo_ok else "failed"
+            }
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e)
+        }
 
 # Example usage on endpoint
 @app.get("/recommendations")
