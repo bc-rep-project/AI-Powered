@@ -6,6 +6,9 @@ from app.training.task_manager import task_manager
 from app.docs.descriptions import TAGS
 from prometheus_client import make_asgi_app
 import asyncio
+from datetime import datetime
+import logging
+from app.middleware.rate_limit import setup_rate_limiting, limit_requests
 
 app = FastAPI(
     title="AI Content Recommendation Engine",
@@ -55,7 +58,10 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=[
+        "https://your-frontend.vercel.app",
+        "https://ai-recommendation-api-xyz123.onrender.com"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -71,6 +77,9 @@ app.include_router(recommendations.router)
 app.include_router(monitoring.router)
 app.include_router(experiments.router)
 app.include_router(rbac.router)
+
+# Setup rate limiting
+setup_rate_limiting(app)
 
 def custom_openapi():
     if app.openapi_schema:
@@ -100,10 +109,24 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
+# Add logging configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 @app.on_event("startup")
 async def startup_event():
     """Start background tasks on application startup."""
-    # Start training task manager in the background
+    logger.info("Starting application...")
+    # Test database connection
+    from app.database import test_database_connection
+    if not test_database_connection():
+        logger.error("Failed to connect to database")
+        raise RuntimeError("Database connection failed")
+    
+    # Start training task manager
     asyncio.create_task(task_manager.start())
 
 @app.on_event("shutdown")
@@ -131,7 +154,17 @@ async def health_check():
     Basic health check endpoint.
     Returns status 'healthy' if the service is running properly.
     """
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "version": "1.0.0"
+    }
+
+# Example usage on endpoint
+@app.get("/recommendations")
+@limit_requests(calls=100, period=60)  # 100 requests per minute
+async def get_recommendations():
+    return {"recommendations": []}
 
 # Add this at the end of the file
 if __name__ == "__main__":

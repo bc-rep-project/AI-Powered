@@ -1,38 +1,20 @@
-name: Deploy Backend to Railway
+name: Deploy to Railway
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production
-
+    
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-          cache: 'pip'
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy to Railway
-        run: |
-          echo "${{ secrets.RAILWAY_TOKEN }}" | railway login
-          railway init
-          railway up --service backend-service
+      - uses: actions/checkout@v2
+      
+      - name: Install Railway
+        run: npm i -g @railway/cli
+      
+      - name: Deploy
+        run: railway up
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_STATIC_BUILDPACK: true
