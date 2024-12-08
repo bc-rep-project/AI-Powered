@@ -20,6 +20,7 @@ except Exception as e:
 
 # MongoDB setup
 mongodb = None
+mongo_client = None
 try:
     if settings.MONGODB_URI:
         mongo_client = AsyncIOMotorClient(settings.MONGODB_URI)
@@ -53,7 +54,23 @@ async def get_db():
         db.close()
 
 # MongoDB collections
-if mongodb:
+user_interactions = None
+content_items = None
+user_profiles = None
+
+if mongodb is not None:
     user_interactions = mongodb.user_interactions
     content_items = mongodb.content_items
     user_profiles = mongodb.user_profiles
+
+# MongoDB dependency
+async def get_mongodb():
+    if mongodb is None:
+        raise ConnectionError("MongoDB connection not available")
+    return mongodb
+
+# Redis dependency
+async def get_redis():
+    if redis_client is None:
+        raise ConnectionError("Redis connection not available")
+    return redis_client
