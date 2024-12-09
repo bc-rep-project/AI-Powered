@@ -37,6 +37,20 @@ class ExperimentMetrics(BaseModel):
         """Calculate Conversion Rate."""
         return self.conversions / self.clicks if self.clicks > 0 else 0
 
+class ExperimentCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    variants: List[ExperimentVariant]
+    traffic_split: Dict[str, float]
+
+class ExperimentUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[ExperimentStatus] = None
+    variants: Optional[List[ExperimentVariant]] = None
+    traffic_split: Optional[Dict[str, float]] = None
+    is_active: Optional[bool] = None
+
 class Experiment(BaseModel):
     id: str
     name: str

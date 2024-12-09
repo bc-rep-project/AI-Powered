@@ -79,6 +79,7 @@ Logging and metrics configuration using Prometheus
 11. Downgraded authlib to version compatible with httpx 0.16.1
 12. Added Prometheus metrics and monitoring setup
 13. Added endpoint monitoring decorator
+14. Added ExperimentCreate and ExperimentUpdate models
 
 ## Dependencies Added
 - authlib: For OAuth authentication (version 0.15.3)
