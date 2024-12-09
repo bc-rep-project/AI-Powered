@@ -85,6 +85,7 @@ Logging and metrics configuration using Prometheus
 - authlib: For OAuth authentication (version 0.15.3)
 - httpx: Required by authlib and postgrest-py (version 0.16.1)
 - prometheus-client: For metrics collection and monitoring
+- slowapi: For rate limiting and request throttling
 
 ## Current State
 - Basic infrastructure is set up
