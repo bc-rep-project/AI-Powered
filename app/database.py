@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
-from sqlalchemy import create_engine, Column, Integer, String, JSONB
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
 
 class Settings(BaseSettings):
