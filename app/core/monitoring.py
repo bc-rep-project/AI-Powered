@@ -1,112 +1,45 @@
-from pydantic_settings import BaseSettings
-from typing import ClassVar, Callable
+from prometheus_client import Counter, Histogram, Info
 import logging
-from prometheus_client import Counter, Histogram, start_http_server
-import time
-from functools import wraps
-from fastapi import Request
 
-class MonitoringConfig(BaseSettings):
-    LOG_LEVEL: str = "INFO"
-    METRICS_PORT: int = 9090
-    
-    # Prometheus metrics - using ClassVar to indicate these aren't settings
-    REQUEST_COUNT: ClassVar[Counter] = Counter(
-        'http_requests_total',
-        'Total number of HTTP requests',
-        ['method', 'endpoint', 'status']
-    )
-    
-    REQUEST_LATENCY: ClassVar[Histogram] = Histogram(
-        'http_request_duration_seconds',
-        'HTTP request latency in seconds',
-        ['method', 'endpoint']
-    )
-    
-    # Model metrics
-    PREDICTION_COUNT: ClassVar[Counter] = Counter(
-        'model_predictions_total',
-        'Total number of model predictions',
-        ['model_version']
-    )
-    
-    PREDICTION_LATENCY: ClassVar[Histogram] = Histogram(
-        'model_prediction_duration_seconds',
-        'Model prediction latency in seconds',
-        ['model_version']
-    )
-    
-    TRAINING_DURATION: ClassVar[Histogram] = Histogram(
-        'model_training_duration_seconds',
-        'Model training duration in seconds',
-        ['model_version']
-    )
-    
-    class Config:
-        env_file = ".env"
+# Metrics
+REQUESTS_TOTAL = Counter(
+    'api_requests_total',
+    'Total number of API requests',
+    ['method', 'endpoint', 'status']
+)
 
-# Configure logging
-logger = logging.getLogger("recommendation_engine")
-logger.setLevel(MonitoringConfig().LOG_LEVEL)
+REQUEST_LATENCY = Histogram(
+    'api_request_latency_seconds',
+    'Request latency in seconds',
+    ['method', 'endpoint']
+)
 
-# Configure metrics
-metrics_logger = MonitoringConfig()
+SYSTEM_INFO = Info('api_system', 'API system information')
 
-# Start Prometheus metrics server
-try:
-    start_http_server(metrics_logger.METRICS_PORT)
-except Exception as e:
-    logger.warning(f"Could not start metrics server: {str(e)}")
+# Logger setup
+logging.basicConfig(level=logging.INFO)
+metrics_logger = logging.getLogger("api_metrics")
 
-def monitor_endpoint(endpoint_name: str = None):
-    """
-    Decorator to monitor FastAPI endpoint performance and requests.
+def log_request(method: str, endpoint: str, status_code: int, duration: float):
+    """Log request metrics"""
+    REQUESTS_TOTAL.labels(
+        method=method,
+        endpoint=endpoint,
+        status=status_code
+    ).inc()
     
-    Args:
-        endpoint_name: Name of the endpoint for metrics. If None, uses the path.
-    """
-    def decorator(func: Callable):
-        @wraps(func)
-        async def wrapper(request: Request, *args, **kwargs):
-            # Get endpoint name from path if not provided
-            path = endpoint_name or request.url.path
-            method = request.method
-            
-            # Start timing
-            start_time = time.time()
-            
-            try:
-                # Execute endpoint
-                response = await func(request, *args, **kwargs)
-                status = "success"
-                
-            except Exception as e:
-                status = "error"
-                logger.error(f"Endpoint error: {str(e)}")
-                raise
-                
-            finally:
-                # Record metrics
-                duration = time.time() - start_time
-                
-                metrics_logger.REQUEST_COUNT.labels(
-                    method=method,
-                    endpoint=path,
-                    status=status
-                ).inc()
-                
-                metrics_logger.REQUEST_LATENCY.labels(
-                    method=method,
-                    endpoint=path
-                ).observe(duration)
-                
-                # Log request
-                logger.info(
-                    f"Request: {method} {path} - "
-                    f"Status: {status} - "
-                    f"Duration: {duration:.3f}s"
-                )
-            
-            return response
-        return wrapper
-    return decorator 
+    REQUEST_LATENCY.labels(
+        method=method,
+        endpoint=endpoint
+    ).observe(duration)
+    
+    metrics_logger.info(
+        f"Request: {method} {endpoint} {status_code} {duration:.3f}s"
+    )
+
+def set_system_info(version: str, environment: str):
+    """Set system information metrics"""
+    SYSTEM_INFO.info({
+        'version': version,
+        'environment': environment
+    }) 

@@ -77,10 +77,12 @@ Logging and metrics configuration using Prometheus
 9. Fixed version conflicts between authlib and httpx
 10. Adjusted httpx version to match postgrest-py requirements
 11. Downgraded authlib to version compatible with httpx 0.16.1
+12. Added Prometheus metrics and monitoring setup
 
 ## Dependencies Added
 - authlib: For OAuth authentication (version 0.15.3)
 - httpx: Required by authlib and postgrest-py (version 0.16.1)
+- prometheus-client: For metrics collection and monitoring
 
 ## Current State
 - Basic infrastructure is set up
