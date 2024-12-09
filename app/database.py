@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     DB_USER: str
     DB_PASSWORD: str
     DB_HOST: str
-    DB_PORT: str = "5432"
+    DB_PORT: str = "6543"
     DB_NAME: str
 
     class Config:
