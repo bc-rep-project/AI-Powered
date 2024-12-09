@@ -71,6 +71,11 @@ Logging and metrics configuration using Prometheus
 3. Implemented neural network configuration
 4. Added training parameters
 5. Set up metrics collection
+6. Added OAuth support with authlib package
+
+## Dependencies Added
+- authlib: For OAuth authentication
+- httpx: Required by authlib for async HTTP requests
 
 ## Current State
 - Basic infrastructure is set up
