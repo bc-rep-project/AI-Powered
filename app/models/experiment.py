@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Dict, List, Optional
+from pydantic import BaseModel, Field
+from typing import Dict, Any, Optional
 from datetime import datetime
 from enum import Enum
 
@@ -12,9 +12,11 @@ class ExperimentStatus(str, Enum):
 class ExperimentVariant(BaseModel):
     id: str
     name: str
-    description: str
-    config: Dict[str, any]
-    traffic_percentage: float
+    description: Optional[str] = None
+    parameters: Dict[str, Any]
+    
+    class Config:
+        arbitrary_types_allowed = True
 
 class ExperimentMetrics(BaseModel):
     variant_id: str
@@ -38,15 +40,20 @@ class ExperimentMetrics(BaseModel):
 class Experiment(BaseModel):
     id: str
     name: str
-    description: str
+    description: Optional[str] = None
     status: ExperimentStatus
     variants: List[ExperimentVariant]
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     metrics: Dict[str, ExperimentMetrics] = {}
+    traffic_split: Dict[str, float]
+    is_active: bool = True
+    created_at: datetime
+    updated_at: Optional[datetime] = None
     
     class Config:
         use_enum_values = True
+        from_attributes = True
 
 class UserAssignment(BaseModel):
     user_id: str
