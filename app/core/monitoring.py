@@ -1,6 +1,11 @@
 from prometheus_client import Counter, Histogram, Info
 import logging
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("recommendation_engine")
+metrics_logger = logging.getLogger("api_metrics")
+
 # Metrics
 REQUESTS_TOTAL = Counter(
     'api_requests_total',
@@ -15,10 +20,6 @@ REQUEST_LATENCY = Histogram(
 )
 
 SYSTEM_INFO = Info('api_system', 'API system information')
-
-# Logger setup
-logging.basicConfig(level=logging.INFO)
-metrics_logger = logging.getLogger("api_metrics")
 
 def log_request(method: str, endpoint: str, status_code: int, duration: float):
     """Log request metrics"""
