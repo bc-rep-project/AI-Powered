@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from app.api import recommendations, auth, monitoring, experiments, rbac
@@ -196,7 +196,8 @@ async def health_check():
 # Example usage on endpoint
 @app.get("/api/recommendations")
 @limit_requests("5/minute")
-async def get_recommendations():
+async def get_recommendations(request: Request):
+    """Get personalized recommendations for the user"""
     return {"recommendations": []}
 
 # Add this at the end of the file
