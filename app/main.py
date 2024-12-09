@@ -194,8 +194,8 @@ async def health_check():
         }
 
 # Example usage on endpoint
-@app.get("/recommendations")
-@limit_requests(calls=100, period=60)  # 100 requests per minute
+@app.get("/api/recommendations")
+@limit_requests("5/minute")
 async def get_recommendations():
     return {"recommendations": []}
 
