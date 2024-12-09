@@ -12,9 +12,9 @@ recommendation_service = RecommendationService()
 @router.post("/recommendations")
 @monitor_endpoint("get_recommendations")
 async def get_recommendations(
+    request: Request,
     n_recommendations: int = 10,
-    current_user: User = Depends(get_current_user),
-    request: Request = Depends()
+    current_user: User = Depends(get_current_user)
 ) -> List[Recommendation]:
     """
     Get personalized recommendations for the authenticated user.
@@ -38,6 +38,7 @@ async def get_recommendations(
 @router.post("/interactions")
 @monitor_endpoint("record_interaction")
 async def record_interaction(
+    request: Request,
     interaction: UserInteraction,
     current_user: User = Depends(get_current_user)
 ):
@@ -79,6 +80,7 @@ async def record_interaction(
 @router.post("/content")
 @monitor_endpoint("add_content")
 async def add_content(
+    request: Request,
     content_item: ContentItem,
     current_user: User = Depends(get_current_user)
 ):
@@ -99,6 +101,7 @@ async def add_content(
 @router.get("/content/{content_id}")
 @monitor_endpoint("get_content")
 async def get_content(
+    request: Request,
     content_id: str,
     current_user: User = Depends(get_current_user)
 ) -> ContentItem:
