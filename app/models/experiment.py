@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 from enum import Enum
 
@@ -66,5 +66,5 @@ class ExperimentEvent(BaseModel):
     experiment_id: str
     variant_id: str
     event_type: str  # e.g., "impression", "click", "conversion"
-    metadata: Dict[str, any] = {}
+    metadata: Dict[str, Any] = {}
     timestamp: datetime = datetime.utcnow() 
