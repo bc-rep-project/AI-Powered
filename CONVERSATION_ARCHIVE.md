@@ -74,10 +74,11 @@ Logging and metrics configuration using Prometheus
 6. Added OAuth support with authlib package
 7. Fixed dependency conflicts between httpx and supabase-py
 8. Corrected httpx version constraint for compatibility
+9. Fixed version conflicts between authlib and httpx
 
 ## Dependencies Added
-- authlib: For OAuth authentication
-- httpx: Required by authlib and postgrest-py (version >=0.16.1,<0.17.0)
+- authlib: For OAuth authentication (version 1.2.0)
+- httpx: Required by authlib and postgrest-py (version 0.23.0)
 
 ## Current State
 - Basic infrastructure is set up
