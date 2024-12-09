@@ -9,6 +9,8 @@ import asyncio
 from datetime import datetime
 import logging
 from app.middleware.rate_limit import setup_rate_limiting, limit_requests
+from app.database.mongodb import mongodb
+import os
 
 app = FastAPI(
     title="AI Content Recommendation Engine",
@@ -118,8 +120,16 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def startup_event():
-    """Start background tasks on application startup."""
+    """Initialize connections and resources on startup"""
     logger.info("Starting application...")
+    
+    # Connect to MongoDB
+    mongodb_url = os.getenv("MONGODB_URI")
+    if not mongodb_url:
+        raise RuntimeError("MONGODB_URI environment variable not set")
+        
+    if not await mongodb.connect_to_mongodb(mongodb_url):
+        raise RuntimeError("MongoDB connection failed")
     
     # Test database connections
     try:
@@ -144,8 +154,9 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Clean up on application shutdown."""
+    """Clean up resources on shutdown"""
     await task_manager.stop()
+    await mongodb.close_mongodb_connection()
 
 @app.get("/", tags=["Root"])
 async def root():
