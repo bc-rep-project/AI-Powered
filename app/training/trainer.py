@@ -1,24 +1,32 @@
 import tensorflow as tf
 import numpy as np
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 from datetime import datetime, timedelta
 import os
 import json
 from app.core.training_config import training_config
 from app.models.neural_recommender import NeuralRecommender
 from app.db.database import mongodb, redis_client
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ModelTrainer:
     def __init__(self):
-        self.model = None
-        self.last_training_time = None
-        self.new_interactions_count = 0
+        self.model: Optional[NeuralRecommender] = None
+        self.current_version: int = 0
         self._setup_directories()
 
     def _setup_directories(self):
-        """Create necessary directories for model checkpoints."""
-        os.makedirs(training_config.CHECKPOINT_DIR, exist_ok=True)
-        os.makedirs(os.path.dirname(training_config.BEST_MODEL_PATH), exist_ok=True)
+        """Create necessary directories for model checkpoints and saves"""
+        try:
+            os.makedirs(training_config.MODEL_CHECKPOINT_DIR, exist_ok=True)
+            os.makedirs(training_config.MODEL_SAVE_PATH, exist_ok=True)
+            os.makedirs(training_config.TENSORBOARD_LOG_DIR, exist_ok=True)
+            logger.info("Successfully created model directories")
+        except Exception as e:
+            logger.error(f"Failed to create model directories: {str(e)}")
+            raise
 
     async def prepare_training_data(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Prepare training data from user interactions."""
@@ -114,7 +122,7 @@ class ModelTrainer:
             callbacks=[
                 tf.keras.callbacks.ModelCheckpoint(
                     filepath=os.path.join(
-                        training_config.CHECKPOINT_DIR,
+                        training_config.MODEL_CHECKPOINT_DIR,
                         "model_{epoch:02d}_{val_loss:.2f}.h5"
                     ),
                     save_best_only=True,
@@ -137,11 +145,10 @@ class ModelTrainer:
         }
         
         # Save best model
-        self.model.save_weights(training_config.BEST_MODEL_PATH)
+        self.model.save_weights(training_config.MODEL_SAVE_PATH)
         
         # Update training metadata
-        self.last_training_time = datetime.utcnow()
-        self.new_interactions_count = 0
+        self.current_version += 1
         
         # Clear recommendation cache
         await self._clear_cache()
@@ -150,7 +157,7 @@ class ModelTrainer:
 
     def _should_train(self) -> bool:
         """Determine if model should be retrained."""
-        if self.last_training_time is None:
+        if self.current_version == 0:
             return True
             
         time_since_last_training = datetime.utcnow() - self.last_training_time
@@ -171,8 +178,8 @@ class ModelTrainer:
 
     def load_model(self):
         """Load the best model weights."""
-        if os.path.exists(training_config.BEST_MODEL_PATH + ".index"):
-            self.model.load_weights(training_config.BEST_MODEL_PATH)
+        if os.path.exists(training_config.MODEL_SAVE_PATH + ".index"):
+            self.model.load_weights(training_config.MODEL_SAVE_PATH)
 
     def increment_interactions_count(self):
         """Increment the count of new interactions."""
