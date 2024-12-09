@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import List
 from app.models.recommendation import UserProfile, ContentItem, Recommendation, UserInteraction
 from app.models.user import User
@@ -13,7 +13,8 @@ recommendation_service = RecommendationService()
 @monitor_endpoint("get_recommendations")
 async def get_recommendations(
     n_recommendations: int = 10,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    request: Request = Depends()
 ) -> List[Recommendation]:
     """
     Get personalized recommendations for the authenticated user.

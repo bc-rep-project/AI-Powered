@@ -1,7 +1,10 @@
 from pydantic_settings import BaseSettings
-from typing import ClassVar
+from typing import ClassVar, Callable
 import logging
 from prometheus_client import Counter, Histogram, start_http_server
+import time
+from functools import wraps
+from fastapi import Request
 
 class MonitoringConfig(BaseSettings):
     LOG_LEVEL: str = "INFO"
@@ -53,4 +56,57 @@ metrics_logger = MonitoringConfig()
 try:
     start_http_server(metrics_logger.METRICS_PORT)
 except Exception as e:
-    logger.warning(f"Could not start metrics server: {str(e)}") 
+    logger.warning(f"Could not start metrics server: {str(e)}")
+
+def monitor_endpoint(endpoint_name: str = None):
+    """
+    Decorator to monitor FastAPI endpoint performance and requests.
+    
+    Args:
+        endpoint_name: Name of the endpoint for metrics. If None, uses the path.
+    """
+    def decorator(func: Callable):
+        @wraps(func)
+        async def wrapper(request: Request, *args, **kwargs):
+            # Get endpoint name from path if not provided
+            path = endpoint_name or request.url.path
+            method = request.method
+            
+            # Start timing
+            start_time = time.time()
+            
+            try:
+                # Execute endpoint
+                response = await func(request, *args, **kwargs)
+                status = "success"
+                
+            except Exception as e:
+                status = "error"
+                logger.error(f"Endpoint error: {str(e)}")
+                raise
+                
+            finally:
+                # Record metrics
+                duration = time.time() - start_time
+                
+                metrics_logger.REQUEST_COUNT.labels(
+                    method=method,
+                    endpoint=path,
+                    status=status
+                ).inc()
+                
+                metrics_logger.REQUEST_LATENCY.labels(
+                    method=method,
+                    endpoint=path
+                ).observe(duration)
+                
+                # Log request
+                logger.info(
+                    f"Request: {method} {path} - "
+                    f"Status: {status} - "
+                    f"Duration: {duration:.3f}s"
+                )
+            
+            return response
+        return wrapper
+    return decorator 
