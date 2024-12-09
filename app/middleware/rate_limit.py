@@ -38,7 +38,6 @@ def setup_rate_limiting(app: FastAPI):
             logger.error(f"Rate limiting error: {str(e)}")
             return await call_next(request)
 
-# Rate limit decorators
 def limit_requests(limit_string: str):
     """Decorator for rate limiting individual endpoints"""
     def decorator(func):
@@ -75,9 +74,3 @@ def dynamic_rate_limit(request: Request):
     except:
         pass
     return RATE_LIMITS[user_type]
-
-# Usage in endpoint
-@app.get("/api/recommendations")
-@limiter.limit(dynamic_rate_limit)
-async def get_recommendations(request: Request):
-    return {"recommendations": []}
