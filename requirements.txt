@@ -17,5 +17,5 @@ pydantic-settings==2.0.3
 supabase-py>=0.0.2
 psycopg2-binary>=2.9.1
 pymongo==4.3.3
-authlib==1.2.0
+authlib==0.15.3
 httpx==0.16.1
