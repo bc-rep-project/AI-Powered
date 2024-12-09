@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, Column, Integer, String, JSONB
+from sqlalchemy.ext.declarative import declarative_base
 
 class Settings(BaseSettings):
     DB_USER: str
@@ -17,6 +18,9 @@ DATABASE_URL = f"postgresql://{settings.DB_USER}:{settings.DB_PASSWORD}@{setting
 
 engine = create_engine(DATABASE_URL)
 
+# Create declarative base
+Base = declarative_base()
+
 def test_database_connection():
     try:
         with engine.connect() as conn:
@@ -31,4 +35,4 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
     email = Column(String, unique=True)
-    preferences = Column(JSONB)  # Using JSONB for flexible preference storage 
+    preferences = Column(JSONB)  # Using JSONB for flexible preference storage
