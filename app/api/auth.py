@@ -17,6 +17,8 @@ from starlette.responses import JSONResponse, RedirectResponse
 from typing import Optional
 import secrets
 from datetime import datetime, timedelta
+from app.core.db import get_db
+from app.core.monitoring import metrics_logger
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
