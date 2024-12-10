@@ -11,7 +11,7 @@ class TrainingConfig(BaseSettings):
     # Training Parameters
     LEARNING_RATE: float = 0.001
     BATCH_SIZE: int = 32
-    NUM_EPOCHS: int = 10
+    EPOCHS: int = 10
     VALIDATION_SPLIT: float = 0.2
     TEST_SPLIT: float = 0.2
     EARLY_STOPPING_PATIENCE: int = 3
