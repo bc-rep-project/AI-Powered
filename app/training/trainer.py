@@ -8,6 +8,7 @@ from app.core.training_config import training_config
 from app.models.neural_recommender import NeuralRecommender
 from app.db.database import mongodb, redis_client
 import logging
+from sklearn.model_selection import train_test_split
 
 logger = logging.getLogger(__name__)
 
@@ -90,9 +91,13 @@ class ModelTrainer:
         self,
         user_ids: np.ndarray,
         item_ids: np.ndarray,
-        labels: np.ndarray
+        labels: np.ndarray,
+        is_training: bool = True
     ) -> tf.data.Dataset:
-        """Create TensorFlow dataset for training."""
+        """Create TensorFlow dataset for training or validation."""
+        if len(user_ids) == 0:
+            raise ValueError("Empty dataset provided")
+        
         dataset = tf.data.Dataset.from_tensor_slices((
             {
                 "user_input": user_ids,
@@ -101,10 +106,16 @@ class ModelTrainer:
             labels
         ))
         
-        # Add shuffling, batching, and repeating
-        dataset = dataset.shuffle(10000)
+        # Shuffle only training data
+        if is_training:
+            dataset = dataset.shuffle(10000)
+        
+        # Always batch
         dataset = dataset.batch(training_config.BATCH_SIZE)
-        dataset = dataset.repeat()  # Add repeat for training
+        
+        # Repeat only training data
+        if is_training:
+            dataset = dataset.repeat()
         
         return dataset
 
@@ -117,28 +128,49 @@ class ModelTrainer:
             
             # Prepare data
             user_ids, item_ids, labels = await self.prepare_training_data()
+            if len(user_ids) == 0:
+                logger.warning("No training data available")
+                return {}
+            
+            # Split data
+            indices = np.random.permutation(len(user_ids))
+            train_idx, val_idx = train_test_split(
+                indices, 
+                test_size=training_config.VALIDATION_SPLIT
+            )
             
             # Create datasets
-            dataset = self._create_dataset(user_ids, item_ids, labels)
+            train_dataset = self._create_dataset(
+                user_ids[train_idx],
+                item_ids[train_idx],
+                labels[train_idx],
+                is_training=True
+            )
             
-            # Split into train/val/test
-            total_size = len(user_ids)
-            val_size = int(total_size * training_config.VALIDATION_SPLIT)
-            test_size = int(total_size * training_config.TEST_SPLIT)
-            train_size = total_size - val_size - test_size
-            
-            train_dataset = dataset.take(train_size)
-            val_dataset = dataset.skip(train_size).take(val_size)
-            test_dataset = dataset.skip(train_size + val_size)
+            val_dataset = self._create_dataset(
+                user_ids[val_idx],
+                item_ids[val_idx],
+                labels[val_idx],
+                is_training=False
+            )
             
             # Create or get model
             if self.model is None:
-                num_users = len(set(user_ids))
-                num_items = len(set(item_ids))
+                num_users = len(np.unique(user_ids))
+                num_items = len(np.unique(item_ids))
                 self.model = self._create_model(num_users, num_items)
             
-            # Calculate steps per epoch
-            steps_per_epoch = len(user_ids) // training_config.BATCH_SIZE
+            # Calculate steps
+            steps_per_epoch = len(train_idx) // training_config.BATCH_SIZE
+            validation_steps = len(val_idx) // training_config.BATCH_SIZE
+            
+            # Update checkpoint callback
+            self.checkpoint_callback.filepath = os.path.join(
+                training_config.MODEL_CHECKPOINT_DIR,
+                f"model_{{epoch:02d}}_{{binary_accuracy:.2f}}.keras"
+            )
+            self.checkpoint_callback.monitor = "binary_accuracy"
+            self.checkpoint_callback.mode = "max"
             
             # Train model
             history = await self.model.fit(
@@ -146,32 +178,31 @@ class ModelTrainer:
                 epochs=training_config.EPOCHS,
                 steps_per_epoch=steps_per_epoch,
                 validation_data=val_dataset,
-                validation_steps=val_size // training_config.BATCH_SIZE,
+                validation_steps=validation_steps,
                 callbacks=[
                     self.checkpoint_callback,
                     self.early_stopping
                 ]
             )
             
-            # Evaluate model
-            test_results = self.model.evaluate(test_dataset)
-            metrics = {
-                "test_loss": float(test_results[0]),
-                "test_accuracy": float(test_results[1]),
-                "test_auc": float(test_results[2])
-            }
-            
             # Save final model
             self.model.save(training_config.MODEL_SAVE_PATH)
             
-            # Update training metadata
+            # Update metadata
             self.current_version += 1
+            self.last_training_time = datetime.utcnow()
+            self.new_interactions_count = 0
             
-            # Clear recommendation cache
+            # Clear cache
             await self._clear_cache()
             
-            return metrics
-
+            return {
+                "train_loss": float(history.history["loss"][-1]),
+                "train_accuracy": float(history.history["binary_accuracy"][-1]),
+                "val_loss": float(history.history["val_loss"][-1]),
+                "val_accuracy": float(history.history["val_binary_accuracy"][-1])
+            }
+            
         except Exception as e:
             logger.error(f"Training error: {str(e)}")
             raise
