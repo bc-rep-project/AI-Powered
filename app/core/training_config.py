@@ -32,6 +32,10 @@ class TrainingConfig(BaseSettings):
     USE_GPU: bool = False
     NUM_WORKERS: int = 4
     
+    # Training Schedule
+    RETRAIN_INTERVAL_HOURS: int = 24
+    MIN_NEW_INTERACTIONS: int = 100
+    
     class Config:
         env_file = ".env"
 

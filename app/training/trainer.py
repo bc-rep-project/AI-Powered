@@ -14,6 +14,10 @@ logger = logging.getLogger(__name__)
 class ModelTrainer:
     def __init__(self):
         self.model = None
+        self.current_version = 0
+        self.last_training_time = datetime.utcnow()
+        self.new_interactions_count = 0
+        
         self.checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
             filepath=training_config.checkpoint_path,
             save_best_only=True,
