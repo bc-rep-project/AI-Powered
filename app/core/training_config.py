@@ -13,6 +13,7 @@ class TrainingConfig(BaseSettings):
     BATCH_SIZE: int = 32
     NUM_EPOCHS: int = 10
     VALIDATION_SPLIT: float = 0.2
+    TEST_SPLIT: float = 0.2
     EARLY_STOPPING_PATIENCE: int = 3
     
     # Data Processing

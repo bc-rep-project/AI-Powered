@@ -7,7 +7,24 @@ from fastapi import Request
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("recommendation_engine")
-metrics_logger = logging.getLogger("api_metrics")
+
+class MetricsLogger:
+    def __init__(self):
+        self.logger = logging.getLogger("api_metrics")
+        
+    def log_error(self, error_type: str, error_message: str, context: dict = None):
+        """Log an error with context"""
+        if context is None:
+            context = {}
+        self.logger.error(f"{error_type}: {error_message}", extra=context)
+        
+    def log_info(self, message: str, context: dict = None):
+        """Log info with context"""
+        if context is None:
+            context = {}
+        self.logger.info(message, extra=context)
+
+metrics_logger = MetricsLogger()
 
 # Metrics
 REQUESTS_TOTAL = Counter(
@@ -73,7 +90,7 @@ def log_request(method: str, endpoint: str, status_code: int, duration: float):
         endpoint=endpoint
     ).observe(duration)
     
-    metrics_logger.info(
+    metrics_logger.log_info(
         f"Request: {method} {endpoint} {status_code} {duration:.3f}s"
     )
 
