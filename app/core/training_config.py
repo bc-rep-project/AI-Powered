@@ -24,7 +24,8 @@ class TrainingConfig(BaseSettings):
     
     # Paths
     MODEL_CHECKPOINT_DIR: str = "models/checkpoints"
-    MODEL_SAVE_PATH: str = "models/recommender"
+    MODEL_CHECKPOINT_FORMAT: str = "model_{epoch:02d}_{val_loss:.2f}.keras"
+    MODEL_SAVE_PATH: str = "models/recommender.keras"
     TENSORBOARD_LOG_DIR: str = "logs/tensorboard"
     
     # Training Resources
@@ -33,5 +34,10 @@ class TrainingConfig(BaseSettings):
     
     class Config:
         env_file = ".env"
+
+    @property
+    def checkpoint_path(self) -> str:
+        """Get the full checkpoint path with proper format"""
+        return f"{self.MODEL_CHECKPOINT_DIR}/{self.MODEL_CHECKPOINT_FORMAT}"
 
 training_config = TrainingConfig() 
