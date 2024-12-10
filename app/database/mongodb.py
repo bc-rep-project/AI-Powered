@@ -36,4 +36,4 @@ class MongoDBConnection:
         if self.client:
             self.client.close()
 
-mongodb = MongoDBConnection() 
+mongodb = MongoDBConnection()
