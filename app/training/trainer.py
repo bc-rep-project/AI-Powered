@@ -19,15 +19,18 @@ class ModelTrainer:
         self.new_interactions_count = 0
         
         self.checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-            filepath=training_config.checkpoint_path,
+            filepath=os.path.join(
+                training_config.MODEL_CHECKPOINT_DIR,
+                "model_{epoch:02d}_{loss:.2f}.keras"
+            ),
             save_best_only=True,
-            monitor='val_loss',
+            monitor='loss',
             mode='min',
             verbose=1
         )
         
         self.early_stopping = tf.keras.callbacks.EarlyStopping(
-            monitor='val_loss',
+            monitor='loss',
             patience=training_config.EARLY_STOPPING_PATIENCE,
             restore_best_weights=True
         )
@@ -98,7 +101,12 @@ class ModelTrainer:
             labels
         ))
         
-        return dataset.shuffle(10000).batch(training_config.BATCH_SIZE)
+        # Add shuffling, batching, and repeating
+        dataset = dataset.shuffle(10000)
+        dataset = dataset.batch(training_config.BATCH_SIZE)
+        dataset = dataset.repeat()  # Add repeat for training
+        
+        return dataset
 
     async def train_model(self) -> Dict[str, float]:
         """Train the recommendation model."""
@@ -129,11 +137,16 @@ class ModelTrainer:
                 num_items = len(set(item_ids))
                 self.model = self._create_model(num_users, num_items)
             
+            # Calculate steps per epoch
+            steps_per_epoch = len(user_ids) // training_config.BATCH_SIZE
+            
             # Train model
             history = await self.model.fit(
                 train_dataset,
                 epochs=training_config.EPOCHS,
+                steps_per_epoch=steps_per_epoch,
                 validation_data=val_dataset,
+                validation_steps=val_size // training_config.BATCH_SIZE,
                 callbacks=[
                     self.checkpoint_callback,
                     self.early_stopping
