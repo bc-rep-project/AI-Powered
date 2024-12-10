@@ -9,7 +9,7 @@ import asyncio
 from datetime import datetime
 import logging
 from app.middleware.rate_limit import setup_rate_limiting, limit_requests
-from app.database.mongodb import mongodb
+from app.database import test_database_connection, mongodb
 import os
 
 app = FastAPI(
@@ -134,7 +134,6 @@ async def startup_event():
     # Test database connections
     try:
         # Test PostgreSQL
-        from app.database import test_database_connection
         if not test_database_connection():
             logger.error("Failed to connect to PostgreSQL")
             raise RuntimeError("PostgreSQL connection failed")
