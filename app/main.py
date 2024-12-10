@@ -140,9 +140,7 @@ async def startup_event():
             raise RuntimeError("PostgreSQL connection failed")
             
         # Test MongoDB
-        from app.db.database import get_mongodb
-        mongodb = await get_mongodb()
-        await mongodb.command('ping')
+        await mongodb.db.command('ping')
         logger.info("Successfully connected to MongoDB")
         
     except Exception as e:
@@ -183,9 +181,7 @@ async def health_check():
         postgres_ok = test_database_connection()
         
         # Check MongoDB
-        from app.db.database import get_mongodb
-        mongodb = await get_mongodb()
-        await mongodb.command('ping')
+        await mongodb.db.command('ping')
         mongo_ok = True
         
         return {
