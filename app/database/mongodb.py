@@ -1,6 +1,7 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.server_api import ServerApi
 import certifi
+from urllib.parse import urlparse
 
 class MongoDBConnection:
     client: AsyncIOMotorClient = None
@@ -19,12 +20,19 @@ class MongoDBConnection:
                 w="majority"
             )
             
-            # Get database from connection string
-            db_name = mongodb_url.split('/')[-1].split('?')[0]
+            # Parse database name from URL
+            # If not in URL, use default name
+            parsed_url = urlparse(mongodb_url)
+            db_name = parsed_url.path.lstrip('/')
+            if not db_name or db_name == '':
+                db_name = 'recommendation_engine'  # Default database name
+            
+            # Get database
             self.db = self.client[db_name]
             
             # Test connection
             await self.db.command('ping')
+            print(f"Successfully connected to MongoDB database: {db_name}")
             return True
             
         except Exception as e:
