@@ -62,11 +62,26 @@ class ModelTrainer:
 
     def _create_model(self, num_users: int, num_items: int) -> NeuralRecommender:
         """Create a new model instance."""
-        return NeuralRecommender(
+        model = NeuralRecommender(
             num_users=num_users,
             num_items=num_items,
             embedding_dim=training_config.EMBEDDING_DIM
         )
+        
+        # Build model graph
+        model = model.build_graph()
+        
+        # Compile model
+        model.compile(
+            optimizer=tf.keras.optimizers.Adam(training_config.LEARNING_RATE),
+            loss=tf.keras.losses.BinaryCrossentropy(),
+            metrics=[
+                tf.keras.metrics.BinaryAccuracy(),
+                tf.keras.metrics.AUC()
+            ]
+        )
+        
+        return model
 
     def _create_dataset(
         self,
@@ -113,16 +128,6 @@ class ModelTrainer:
                 num_users = len(set(user_ids))
                 num_items = len(set(item_ids))
                 self.model = self._create_model(num_users, num_items)
-            
-            # Compile model
-            self.model.compile(
-                optimizer=tf.keras.optimizers.Adam(training_config.LEARNING_RATE),
-                loss=tf.keras.losses.BinaryCrossentropy(),
-                metrics=[
-                    tf.keras.metrics.BinaryAccuracy(),
-                    tf.keras.metrics.AUC()
-                ]
-            )
             
             # Train model
             history = await self.model.fit(

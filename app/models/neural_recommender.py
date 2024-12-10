@@ -1,86 +1,55 @@
 import tensorflow as tf
-from tensorflow.keras import layers, Model
-from typing import List, Tuple
-import numpy as np
-from app.core.config import settings
+from tensorflow.keras import Model
+from tensorflow.keras.layers import Embedding, Dense, Concatenate
 
 class NeuralRecommender(Model):
-    def __init__(
-        self,
-        num_users: int,
-        num_items: int,
-        embedding_dim: int = settings.EMBEDDING_DIM
-    ):
-        super(NeuralRecommender, self).__init__()
+    def __init__(self, num_users: int, num_items: int, embedding_dim: int):
+        super().__init__()
         
-        # User embedding layer
-        self.user_embedding = layers.Embedding(
-            num_users,
+        # Embeddings
+        self.user_embedding = Embedding(
+            num_users + 1,  # Add 1 for padding/unknown
             embedding_dim,
-            embeddings_initializer="he_normal",
-            embeddings_regularizer=tf.keras.regularizers.l2(1e-6)
+            name="user_embedding"
+        )
+        self.item_embedding = Embedding(
+            num_items + 1,  # Add 1 for padding/unknown
+            embedding_dim,
+            name="item_embedding"
         )
         
-        # Item embedding layer
-        self.item_embedding = layers.Embedding(
-            num_items,
-            embedding_dim,
-            embeddings_initializer="he_normal",
-            embeddings_regularizer=tf.keras.regularizers.l2(1e-6)
-        )
-        
-        # Neural network layers
-        self.dense_layers = [
-            layers.Dense(256, activation="relu"),
-            layers.Dropout(0.2),
-            layers.Dense(128, activation="relu"),
-            layers.Dropout(0.2),
-            layers.Dense(64, activation="relu"),
-            layers.Dense(1, activation="sigmoid")
-        ]
+        # Layers
+        self.concat = Concatenate(axis=1)
+        self.dense_1 = Dense(128, activation='relu')
+        self.dense_2 = Dense(64, activation='relu')
+        self.output_layer = Dense(1, activation='sigmoid')
 
-    def call(self, inputs: Tuple[tf.Tensor, tf.Tensor]) -> tf.Tensor:
-        user_input, item_input = inputs
+    def call(self, inputs):
+        """Forward pass of the model"""
+        # Get inputs
+        user_input = inputs["user_input"]
+        item_input = inputs["item_input"]
         
         # Get embeddings
         user_embedded = self.user_embedding(user_input)
         item_embedded = self.item_embedding(item_input)
         
         # Concatenate embeddings
-        x = tf.concat([user_embedded, item_embedded], axis=1)
+        concat = self.concat([user_embedded, item_embedded])
         
-        # Pass through dense layers
-        for layer in self.dense_layers:
-            x = layer(x)
-            
-        return x
-
-    def get_user_embedding(self, user_id: int) -> np.ndarray:
-        """Get the embedding vector for a user."""
-        return self.user_embedding(tf.constant([user_id]))[0].numpy()
-
-    def get_item_embedding(self, item_id: int) -> np.ndarray:
-        """Get the embedding vector for an item."""
-        return self.item_embedding(tf.constant([item_id]))[0].numpy()
-
-    def predict_score(self, user_id: int, item_id: int) -> float:
-        """Predict the interaction score between a user and an item."""
-        return self.call((
-            tf.constant([user_id]),
-            tf.constant([item_id])
-        ))[0][0].numpy()
-
-    def get_recommendations(
-        self,
-        user_id: int,
-        item_ids: List[int],
-        top_k: int = 10
-    ) -> List[Tuple[int, float]]:
-        """Get top-k recommendations for a user from a list of items."""
-        scores = []
-        for item_id in item_ids:
-            score = self.predict_score(user_id, item_id)
-            scores.append((item_id, score))
+        # Dense layers
+        x = self.dense_1(concat)
+        x = self.dense_2(x)
         
-        # Sort by score and return top-k
-        return sorted(scores, key=lambda x: x[1], reverse=True)[:top_k] 
+        # Output
+        return self.output_layer(x)
+
+    def build_graph(self):
+        """Build the model graph"""
+        user_input = tf.keras.Input(shape=(), dtype=tf.float32, name="user_input")
+        item_input = tf.keras.Input(shape=(), dtype=tf.float32, name="item_input")
+        
+        return Model(
+            inputs={"user_input": user_input, "item_input": item_input},
+            outputs=self.call({"user_input": user_input, "item_input": item_input})
+        ) 
