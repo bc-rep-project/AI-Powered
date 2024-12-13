@@ -43,18 +43,6 @@ REQUEST_LATENCY = Histogram(
 
 SYSTEM_INFO = Info('api_system', 'API system information')
 
-recommendation_requests = Counter(
-    'recommendation_requests_total',
-    'Total number of recommendation requests',
-    ['endpoint', 'status']
-)
-
-recommendation_latency = Histogram(
-    'recommendation_latency_seconds',
-    'Recommendation generation latency',
-    ['endpoint']
-)
-
 def monitor_endpoint(endpoint_name: str = None):
     """
     Decorator to monitor FastAPI endpoint performance and requests.

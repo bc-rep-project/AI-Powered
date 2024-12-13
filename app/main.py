@@ -65,8 +65,15 @@ app.add_middleware(
         "http://localhost:3000"
     ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Content-Type", 
+        "Authorization",
+        "Access-Control-Allow-Headers",
+        "Access-Control-Allow-Origin",
+        "Access-Control-Allow-Methods"
+    ],
+    expose_headers=["*"]
 )
 
 # Mount Prometheus metrics endpoint
