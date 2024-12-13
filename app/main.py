@@ -61,8 +61,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://your-frontend.vercel.app",
-        "https://ai-recommendation-api-xyz123.onrender.com"
+        "https://ai-powered-content-recommendation-frontend.vercel.app",
+        "http://localhost:3000"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -88,13 +88,13 @@ def custom_openapi():
         return app.openapi_schema
         
     openapi_schema = get_openapi(
-        title=app.title,
-        version=app.version,
-        description=app.description,
+        title="AI Recommendation API",
+        version="1.0.0",
+        description="API for AI-powered content recommendations",
         routes=app.routes,
     )
     
-    # Add security scheme
+    # Add security schemes
     openapi_schema["components"]["securitySchemes"] = {
         "bearerAuth": {
             "type": "http",
@@ -102,9 +102,6 @@ def custom_openapi():
             "bearerFormat": "JWT",
         }
     }
-    
-    # Apply security globally
-    openapi_schema["security"] = [{"bearerAuth": []}]
     
     app.openapi_schema = openapi_schema
     return app.openapi_schema

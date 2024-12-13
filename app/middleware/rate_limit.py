@@ -8,6 +8,10 @@ logger = logging.getLogger(__name__)
 
 limiter = Limiter(key_func=get_remote_address)
 
+@limiter.limit("5/minute")
+async def rate_limit_middleware(request: Request):
+    pass
+
 def setup_rate_limiting(app: FastAPI):
     """Configure rate limiting for the FastAPI application"""
     app.state.limiter = limiter

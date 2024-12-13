@@ -8,3 +8,7 @@ venv/
 .idea/
 .vscode/
 frontend/ 
+# Cypress
+cypress/videos
+cypress/screenshots
+cypress/downloads 

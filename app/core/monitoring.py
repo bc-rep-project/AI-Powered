@@ -3,6 +3,8 @@ import logging
 from functools import wraps
 import time
 from fastapi import Request
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -40,6 +42,18 @@ REQUEST_LATENCY = Histogram(
 )
 
 SYSTEM_INFO = Info('api_system', 'API system information')
+
+recommendation_requests = Counter(
+    'recommendation_requests_total',
+    'Total number of recommendation requests',
+    ['endpoint', 'status']
+)
+
+recommendation_latency = Histogram(
+    'recommendation_latency_seconds',
+    'Recommendation generation latency',
+    ['endpoint']
+)
 
 def monitor_endpoint(endpoint_name: str = None):
     """
@@ -100,3 +114,25 @@ def set_system_info(version: str, environment: str):
         'version': version,
         'environment': environment
     }) 
+
+def setup_monitoring(app):
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        integrations=[FastApiIntegration()],
+        traces_sample_rate=1.0,
+        environment=settings.ENVIRONMENT,
+    )
+
+    @app.middleware("http")
+    async def sentry_middleware(request, call_next):
+        try:
+            response = await call_next(request)
+            return response
+        except Exception as e:
+            with sentry_sdk.push_scope() as scope:
+                scope.set_context("request", {
+                    "url": str(request.url),
+                    "method": request.method,
+                })
+                sentry_sdk.capture_exception(e)
+            raise 

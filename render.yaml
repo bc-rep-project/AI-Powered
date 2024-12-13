@@ -4,36 +4,39 @@ services:
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
         value: 3.9
+      - key: ENVIRONMENT
+        value: production
       # Database
       - key: DATABASE_URL
         fromDatabase:
           name: postgres
           property: connectionString
-      # MongoDB
-      - key: MONGODB_URI
-        value: "mongodb+srv://[USERNAME]:[PASSWORD]@[CLUSTER].mongodb.net/[DB_NAME]"
-      - key: MONGODB_DB_NAME
-        value: "recommendation_engine"
       # Redis
-      - key: REDIS_HOST
-        value: "your-redis-host"
-      - key: REDIS_PORT
-        value: "6379"
-      - key: REDIS_PASSWORD
-        value: "your-redis-password"
-      # Supabase
-      - key: SUPABASE_URL
-        value: "your-project-ref"
-      - key: SUPABASE_KEY
-        value: "your-supabase-anon-key"
-      - key: SUPABASE_JWT_SECRET
-        value: "your-supabase-jwt-secret"
-      # Auth
-      - key: SECRET_KEY
-        generateValue: true
-      # Service URLs
+      - key: REDIS_URL
+        fromService:
+          name: redis
+          type: redis
+          property: connectionString
+      # Frontend URL (Vercel)
       - key: FRONTEND_URL
-        value: "https://your-frontend.vercel.app"
+        value: https://ai-powered-content-recommendation-frontend.vercel.app
+    scaling:
+      minInstances: 1
+      maxInstances: 3
+      targetMemoryPercent: 80
+      targetCPUPercent: 75
+
+databases:
+  - name: postgres
+    ipAllowList: []
+    
+services:
+  - type: redis
+    name: redis
+    ipAllowList: []
+    plan: starter

@@ -8,9 +8,11 @@ startCommand = "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
 restartPolicyType = "on-failure"
 restartPolicyMaxRetries = 3
 healthcheckPath = "/health"
-healthcheckTimeout = 100
-healthcheckInterval = 30
-numReplicas = 1
+healthcheckTimeout = 30
+healthcheckInterval = 15
+numReplicas = 2
+minReplicas = 1
+maxReplicas = 5
 healthcheckProtocol = "http"
 
 [deploy.envs]
@@ -19,3 +21,7 @@ PORT = "8080"
 ENVIRONMENT = "production"
 PYTHONUNBUFFERED = "1"
 LOG_LEVEL = "INFO"
+
+[deploy.resources]
+memory = "512Mi"
+cpu = "250m"

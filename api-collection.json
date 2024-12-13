@@ -1,0 +1,33 @@
+{
+  "info": {
+    "name": "AI Recommendation API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": {
+                "email": "test@example.com",
+                "password": "password123"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://ai-recommendation-api.onrender.com"
+    }
+  ]
+} 
