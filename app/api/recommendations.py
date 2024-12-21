@@ -7,7 +7,7 @@ from datetime import datetime
 import uuid
 
 router = APIRouter(
-    prefix="/api/v1/recommendations",
+    prefix="/recommendations",
     tags=["recommendations"]
 )
 
