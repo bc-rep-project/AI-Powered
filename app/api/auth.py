@@ -1,5 +1,5 @@
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, BackgroundTasks, Form
 from fastapi.security import OAuth2PasswordRequestForm
 from app.core.auth import (
     authenticate_user,
@@ -52,10 +52,13 @@ async def register_user(user: UserCreate, db: Session = Depends(get_db)):
     return User(**user_dict)
 
 @router.post("/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> Any:
-    logger.info(f"Login attempt for user: {form_data.username}")
+async def login(
+    username: str = Form(...),
+    password: str = Form(...),
+) -> Any:
+    logger.info(f"Login attempt for user: {username}")
     try:
-        user = await authenticate_user(form_data.username, form_data.password)
+        user = await authenticate_user(username, password)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
