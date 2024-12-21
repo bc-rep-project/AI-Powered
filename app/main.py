@@ -61,7 +61,7 @@ app = FastAPI(
 origins = [
     "http://localhost:3000",  # Frontend development server
     "http://localhost:8000",  # Backend development server
-    "https://your-production-domain.com"  # Production domain
+    "https://ai-powered-content-recommendation-frontend-59wszecfo.vercel.app"  # Production domain
 ]
 
 app.add_middleware(
