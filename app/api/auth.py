@@ -14,13 +14,16 @@ from app.db.database import mongodb
 import uuid
 from sqlalchemy.orm import Session
 from starlette.responses import JSONResponse, RedirectResponse
-from typing import Optional
+from typing import Optional, Any
 import secrets
 from datetime import datetime, timedelta
 from app.core.db import get_db
 from app.core.monitoring import metrics_logger
+import logging
 
-router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 
 SUPPORTED_OAUTH_PROVIDERS = ['google', 'github', 'facebook']
 
@@ -48,24 +51,27 @@ async def register_user(user: UserCreate, db: Session = Depends(get_db)):
     del user_dict["password"]
     return User(**user_dict)
 
-@router.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    """Login to get access token."""
-    user = await authenticate_user(form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.email},
-        expires_delta=access_token_expires
-    )
-    
-    return Token(access_token=access_token)
+@router.post("/login")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> Any:
+    logger.info(f"Login attempt for user: {form_data.username}")
+    try:
+        user = await authenticate_user(form_data.username, form_data.password)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        access_token = create_access_token(data={"sub": user.email})
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": user
+        }
+    except Exception as e:
+        logger.error(f"Login failed: {str(e)}")
+        raise
 
 @router.get("/me", response_model=User)
 async def read_users_me(current_user: User = Depends(get_current_user)):

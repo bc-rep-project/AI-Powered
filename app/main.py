@@ -65,10 +65,19 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=[
+        "http://localhost:3000",
+        "https://ai-powered-content-recommendation-frontend-59wszecfo.vercel.app"
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Content-Type", 
+        "Authorization",
+        "Accept",
+        "Origin",
+        "X-Requested-With"
+    ],
     expose_headers=["*"]
 )
 
