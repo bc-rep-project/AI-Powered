@@ -12,7 +12,9 @@ class UserBase(BaseModel):
     picture: Optional[str] = None
     oauth_provider: Optional[str] = None
 
-class UserCreate(UserBase):
+class UserCreate(BaseModel):
+    username: str
+    email: EmailStr
     password: str
 
 class User(UserBase):
