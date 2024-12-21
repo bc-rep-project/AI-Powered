@@ -1,6 +1,8 @@
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Generic, TypeVar
 from pydantic import BaseModel, Field
+
+T = TypeVar('T')
 
 class UserProfile(BaseModel):
     user_id: str
@@ -42,6 +44,15 @@ class RecommendationResponse(BaseModel):
     image_url: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
     created_at: datetime = datetime.now()
+
+    class Config:
+        from_attributes = True 
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    items: List[T]
+    total: int
+    page: int
+    totalPages: int
 
     class Config:
         from_attributes = True 
