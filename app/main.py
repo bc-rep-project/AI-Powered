@@ -59,10 +59,8 @@ app = FastAPI(
 
 # Configure CORS
 origins = [
-    "http://localhost:3000",  # Frontend development server
-    "http://localhost:8000",  # Backend development server
-    "https://ai-powered-content-recommendation-frontend-59wszecfo.vercel.app",  # Vercel frontend
-    "https://ai-recommendation-api.onrender.com"  # Render backend
+    "http://localhost:3000",
+    "https://ai-powered-content-recommendation-frontend-59wszecfo.vercel.app"
 ]
 
 app.add_middleware(
@@ -71,6 +69,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Mount Prometheus metrics endpoint
