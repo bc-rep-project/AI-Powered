@@ -14,17 +14,21 @@ echo "Testing Integration Flow..."
 echo -e "\n${GREEN}Testing Registration...${NC}"
 REGISTER_RESPONSE=$(curl -s -X POST "$API_URL/api/v1/auth/register" \
   -H "Content-Type: application/json" \
-  -d '{
-    "username": "testuser",
-    "email": "test@example.com",
-    "password": "Test123!"
-  }')
+  -H "Accept: application/json" \
+  -d @- << EOF
+{
+  "username": "testuser",
+  "email": "test@example.com",
+  "password": "Test123!"
+}
+EOF
+)
 
-ACCESS_TOKEN=$(echo $REGISTER_RESPONSE | jq -r '.access_token')
-
-if [ "$ACCESS_TOKEN" != "null" ]; then
+# Parse and check response
+HTTP_STATUS=$(echo $REGISTER_RESPONSE | jq -r '.status // 500')
+if [ $HTTP_STATUS -eq 201 ]; then
   echo "Registration successful!"
-  echo "Access Token: ${ACCESS_TOKEN:0:20}..."
+  echo "Response: $REGISTER_RESPONSE"
 else
   echo -e "${RED}Registration failed!${NC}"
   echo "Response: $REGISTER_RESPONSE"

@@ -16,17 +16,23 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": {
-                "username": "testuser",
-                "email": "test@example.com",
-                "password": "Test123!"
+              "raw": "{\n  \"username\": \"testuser\",\n  \"email\": \"test@example.com\",\n  \"password\": \"Test123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
               }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Login User",
