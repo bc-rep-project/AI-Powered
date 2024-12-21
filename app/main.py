@@ -59,27 +59,18 @@ app = FastAPI(
 
 # Configure CORS
 origins = [
-    "http://localhost:3000",  # Development
-    "https://ai-powered-content-recommendation-frontend.vercel.app",  # Production frontend
-    "https://ai-powered-content-recommendation-frontend-59wszecfo.vercel.app",  # Alternative production URL
+    "http://localhost:3000",
+    "https://ai-powered-content-recommendation-frontend.vercel.app",
+    "https://ai-powered-content-recommendation-frontend-59wszecfo.vercel.app",
+    # Add any other frontend URLs
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=[
-        "Content-Type", 
-        "Authorization",
-        "Accept",
-        "Origin",
-        "Access-Control-Allow-Origin",
-        "Access-Control-Allow-Methods",
-        "Access-Control-Allow-Headers"
-    ],
-    expose_headers=["*"],
-    max_age=86400  # Cache preflight requests for 24 hours
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Mount Prometheus metrics endpoint

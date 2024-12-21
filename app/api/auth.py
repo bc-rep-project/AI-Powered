@@ -30,26 +30,60 @@ SUPPORTED_OAUTH_PROVIDERS = ['google', 'github', 'facebook']
 # Keep track of reset tokens
 reset_tokens = {}  # token -> {user_id, expiry}
 
-@router.post("/register", response_model=User)
-async def register_user(user: UserCreate, db: Session = Depends(get_db)):
+@router.post("/register", response_model=Token)
+async def register(user: UserCreate, db: Session = Depends(get_db)):
     """Register a new user."""
-    # Check if user already exists
-    if await mongodb.users.find_one({"email": user.email}):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+    try:
+        # Check if user already exists
+        existing_user = await mongodb.users.find_one({
+            "$or": [
+                {"email": user.email},
+                {"username": user.username}
+            ]
+        })
+        
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email or username already registered"
+            )
+        
+        # Create new user
+        hashed_password = get_password_hash(user.password)
+        user_dict = {
+            "id": str(uuid.uuid4()),
+            "email": user.email,
+            "username": user.username,
+            "hashed_password": hashed_password,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        await mongodb.users.insert_one(user_dict)
+        
+        # Create access token
+        access_token = create_access_token(
+            data={"sub": user.email}
         )
-    
-    # Create new user
-    user_dict = user.dict()
-    user_dict["password"] = get_password_hash(user.password)
-    user_dict["id"] = str(uuid.uuid4())
-    
-    await mongodb.users.insert_one(user_dict)
-    
-    # Return user without password
-    del user_dict["password"]
-    return User(**user_dict)
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "id": user_dict["id"],
+                "email": user.email,
+                "username": user.username
+            }
+        }
+        
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Registration failed: {str(e)}"
+        )
 
 @router.post("/login")
 async def login(
