@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 class UserProfile(BaseModel):
@@ -30,4 +30,18 @@ class Recommendation(BaseModel):
     content_items: List[ContentItem]
     score: float
     explanation: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow) 
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class RecommendationResponse(BaseModel):
+    id: str
+    title: str
+    description: str
+    content_id: str
+    score: float
+    category: Optional[str] = None
+    image_url: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+    created_at: datetime = datetime.now()
+
+    class Config:
+        from_attributes = True 

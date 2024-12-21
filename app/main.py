@@ -87,7 +87,11 @@ app.mount("/metrics", metrics_app)
 
 # Include routers
 app.include_router(auth.router)
-app.include_router(recommendations.router)
+app.include_router(
+    recommendations.router,
+    prefix="/api/v1",
+    tags=["recommendations"]
+)
 app.include_router(monitoring.router)
 app.include_router(experiments.router)
 app.include_router(rbac.router)
