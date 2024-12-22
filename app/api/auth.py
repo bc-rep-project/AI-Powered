@@ -114,17 +114,45 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
     """Get current user information."""
     return current_user 
 
-@router.post("/token")
-async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db)
+@router.post("/token", response_model=Token)
+async def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends()
 ):
-    user = authenticate_user(db, form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+    """Get access token for login credentials"""
+    try:
+        # Find user by email
+        user = await mongodb.db.users.find_one({"email": form_data.username})
+        if not user:
+            raise HTTPException(
+                status_code=401,
+                detail="Incorrect email or password"
+            )
+
+        # Verify password
+        if not verify_password(form_data.password, user["password"]):
+            raise HTTPException(
+                status_code=401,
+                detail="Incorrect email or password"
+            )
+
+        # Create access token
+        access_token = create_access_token(
+            data={"sub": user["email"]}
+        )
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer"
+        }
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error during login"
+        )
 
 @router.get("/{provider}")
 async def oauth_login(provider: str, request: Request):
