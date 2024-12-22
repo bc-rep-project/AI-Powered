@@ -33,9 +33,13 @@ if not MONGODB_URI:
 try:
     # Create MongoDB client
     mongodb = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
-    db = mongodb.get_database()  # This will use the database from the connection string
+    db = mongodb.recommendation_engine  # Use specific database name
+    
+    # Test connection immediately
+    await db.command('ping')
+    logger.info("Successfully connected to MongoDB")
 except Exception as e:
-    print(f"Failed to initialize MongoDB: {str(e)}")
+    logger.error(f"MongoDB connection failed: {str(e)}")
     raise
 
 async def test_database_connection():

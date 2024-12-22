@@ -11,6 +11,7 @@ import logging
 from app.middleware.rate_limit import setup_rate_limiting, limit_requests
 from app.database import test_database_connection, mongodb
 import os
+from app.middleware.logging import log_request
 
 app = FastAPI(
     title="AI Content Recommendation Engine",
@@ -74,6 +75,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Mount Prometheus metrics endpoint
@@ -221,3 +223,5 @@ if __name__ == "__main__":
     
     port = int(os.getenv("PORT", 8000))
     uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False) 
+
+app.middleware("http")(log_request) 

@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: Optional[str] = None
     
     # MongoDB Configuration
-    MONGODB_URI: Optional[str] = None
+    MONGODB_URI: str
     MONGODB_DB_NAME: str = "recommendation_engine"
     
     # Auth

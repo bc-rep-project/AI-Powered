@@ -6,7 +6,8 @@ from app.core.auth import (
     create_access_token,
     get_current_user,
     get_password_hash,
-    ACCESS_TOKEN_EXPIRE_MINUTES
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    verify_password
 )
 from app.core.oauth import oauth, get_oauth_user_data, get_oauth_redirect_uri
 from app.models.user import User, UserCreate, Token, PasswordReset
@@ -21,6 +22,7 @@ from app.core.db import get_db
 from app.core.monitoring import metrics_logger
 import logging
 from pydantic import BaseModel, EmailStr
+from passlib.hash import bcrypt
 
 logger = logging.getLogger(__name__)
 
@@ -118,41 +120,22 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends()
 ):
-    """Get access token for login credentials"""
     try:
-        # Find user by email
         user = await mongodb.db.users.find_one({"email": form_data.username})
         if not user:
-            raise HTTPException(
-                status_code=401,
-                detail="Incorrect email or password"
-            )
-
-        # Verify password
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+            
         if not verify_password(form_data.password, user["password"]):
-            raise HTTPException(
-                status_code=401,
-                detail="Incorrect email or password"
-            )
-
-        # Create access token
-        access_token = create_access_token(
-            data={"sub": user["email"]}
-        )
-        
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+            
+        access_token = create_access_token(data={"sub": user["email"]})
         return {
             "access_token": access_token,
             "token_type": "bearer"
         }
-
-    except HTTPException as he:
-        raise he
     except Exception as e:
-        logger.error(f"Login error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error during login"
-        )
+        logger.error(f"Login failed: {str(e)}")
+        raise
 
 @router.get("/{provider}")
 async def oauth_login(provider: str, request: Request):
@@ -296,3 +279,9 @@ async def validate_reset_token(token: str):
     if not token_data or datetime.utcnow() > token_data["expiry"]:
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
     return {"message": "Token is valid"}
+
+def get_password_hash(password: str) -> str:
+    return bcrypt.hash(password)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return bcrypt.verify(plain_password, hashed_password)
