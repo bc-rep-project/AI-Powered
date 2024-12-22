@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 from app.core.db import get_db
 from app.core.monitoring import metrics_logger
 import logging
+from pydantic import BaseModel, EmailStr
 
 logger = logging.getLogger(__name__)
 
@@ -30,59 +31,57 @@ SUPPORTED_OAUTH_PROVIDERS = ['google', 'github', 'facebook']
 # Keep track of reset tokens
 reset_tokens = {}  # token -> {user_id, expiry}
 
-@router.post("/register", response_model=Token)
-async def register(user: UserCreate, db: Session = Depends(get_db)):
-    """Register a new user."""
+class UserRegister(BaseModel):
+    username: str
+    email: EmailStr  # This ensures email validation
+    password: str
+
+@router.post("/register", status_code=201)
+async def register(user: UserRegister):
     try:
-        # Check if user already exists
-        existing_user = await mongodb.users.find_one({
-            "$or": [
-                {"email": user.email},
-                {"username": user.username}
-            ]
-        })
+        logger.info(f"Registration attempt for email: {user.email}")
         
-        if existing_user:
+        # Check if email exists
+        existing_email = await mongodb.db.users.find_one({"email": user.email})
+        if existing_email:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email or username already registered"
+                status_code=400,
+                detail="Email already registered"
             )
-        
-        # Create new user
+            
+        # Check if username exists
+        existing_username = await mongodb.db.users.find_one({"username": user.username})
+        if existing_username:
+            raise HTTPException(
+                status_code=400,
+                detail="Username already taken"
+            )
+            
+        # Hash password and create user
         hashed_password = get_password_hash(user.password)
-        user_dict = {
-            "id": str(uuid.uuid4()),
-            "email": user.email,
+        new_user = {
             "username": user.username,
-            "hashed_password": hashed_password,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
+            "email": user.email,
+            "password": hashed_password,
+            "created_at": datetime.utcnow()
         }
         
-        await mongodb.users.insert_one(user_dict)
-        
-        # Create access token
-        access_token = create_access_token(
-            data={"sub": user.email}
-        )
+        await mongodb.db.users.insert_one(new_user)
+        logger.info(f"Successfully registered user: {user.email}")
         
         return {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user": {
-                "id": user_dict["id"],
-                "email": user.email,
-                "username": user.username
-            }
+            "message": "User registered successfully",
+            "email": user.email
         }
         
     except HTTPException as he:
+        logger.error(f"Registration failed: {he.detail}")
         raise he
     except Exception as e:
-        logger.error(f"Registration error: {str(e)}")
+        logger.error(f"Unexpected error during registration: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Registration failed: {str(e)}"
+            status_code=500,
+            detail="Internal server error during registration"
         )
 
 @router.post("/login")
@@ -126,26 +125,6 @@ async def login(
     
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
-
-@router.post("/register")
-async def register(user: UserCreate, db: Session = Depends(get_db)):
-    # Check if user exists
-    db_user = db.query(User).filter(User.email == user.email).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    # Create new user
-    hashed_password = get_password_hash(user.password)
-    db_user = User(
-        email=user.email,
-        username=user.username,
-        hashed_password=hashed_password
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    
-    return {"message": "User created successfully"}
 
 @router.get("/{provider}")
 async def oauth_login(provider: str, request: Request):

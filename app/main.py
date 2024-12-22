@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from app.api import recommendations, auth, monitoring, experiments, rbac
@@ -11,7 +11,6 @@ import logging
 from app.middleware.rate_limit import setup_rate_limiting, limit_requests
 from app.database import test_database_connection, mongodb
 import os
-from pydantic import BaseModel
 
 app = FastAPI(
     title="AI Content Recommendation Engine",
@@ -68,7 +67,10 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=[
+        "http://localhost:3000",
+        "https://ai-powered-content-recommendation-frontend.vercel.app"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -211,36 +213,6 @@ async def health_check():
 async def get_recommendations(request: Request):
     """Get personalized recommendations for the user"""
     return {"recommendations": []}
-
-class UserRegister(BaseModel):
-    username: str
-    email: str
-    password: str
-
-@app.post("/api/v1/auth/register")
-async def register(user: UserRegister):
-    try:
-        # Check if user already exists
-        if await db.users.find_one({"email": user.email}):
-            raise HTTPException(status_code=400, detail="Email already registered")
-        
-        # Hash the password
-        hashed_password = get_password_hash(user.password)
-        
-        # Create new user
-        new_user = {
-            "username": user.username,
-            "email": user.email,
-            "password": hashed_password,
-            "created_at": datetime.utcnow()
-        }
-        
-        result = await db.users.insert_one(new_user)
-        
-        return {"message": "User registered successfully"}
-        
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 # Add this at the end of the file
 if __name__ == "__main__":

@@ -2,6 +2,9 @@ from pydantic_settings import BaseSettings
 from sqlalchemy import create_engine, Column, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
+import motor.motor_asyncio
+import os
+from urllib.parse import quote_plus
 
 class Settings(BaseSettings):
     DB_USER: str
@@ -22,15 +25,26 @@ engine = create_engine(DATABASE_URL)
 # Create declarative base
 Base = declarative_base()
 
-def test_database_connection():
-    """Test the database connection by executing a simple query"""
+# Get MongoDB credentials from environment
+MONGODB_URI = os.getenv("MONGODB_URI")
+if not MONGODB_URI:
+    raise ValueError("MONGODB_URI environment variable is not set")
+
+try:
+    # Create MongoDB client
+    mongodb = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
+    db = mongodb.get_database()  # This will use the database from the connection string
+except Exception as e:
+    print(f"Failed to initialize MongoDB: {str(e)}")
+    raise
+
+async def test_database_connection():
     try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-            conn.commit()
+        # Verify connection
+        await client.admin.command('ping')
         return True
     except Exception as e:
-        print(f"Database connection error: {str(e)}")
+        print(f"Database connection failed: {str(e)}")
         return False
 
 # Example table relationships
