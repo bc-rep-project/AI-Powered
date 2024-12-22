@@ -1,71 +1,38 @@
 {
   "info": {
-    "name": "AI Recommendation API Tests",
+    "name": "AI Recommendation API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "Auth",
-      "item": [
-        {
-          "name": "Register User",
-          "request": {
-            "method": "POST",
-            "url": "{{baseUrl}}/api/v1/auth/register",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Accept",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"username\": \"testuser\",\n  \"email\": \"test@example.com\",\n  \"password\": \"Test123!\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
+      "name": "Register User",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/auth/register",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "auth", "register"]
         },
-        {
-          "name": "Login User",
-          "request": {
-            "method": "POST",
-            "url": "{{baseUrl}}/api/v1/auth/login",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/x-www-form-urlencoded"
-              }
-            ],
-            "body": {
-              "mode": "urlencoded",
-              "urlencoded": [
-                {
-                  "key": "username",
-                  "value": "test@example.com"
-                },
-                {
-                  "key": "password",
-                  "value": "Test123!"
-                }
-              ]
-            }
+        "body": {
+          "mode": "raw",
+          "raw": {
+            "username": "testuser",
+            "email": "test@example.com",
+            "password": "Test123!@#"
           }
         }
-      ]
+      }
     }
   ],
   "variable": [
     {
-      "key": "baseUrl",
+      "key": "base_url",
       "value": "https://ai-recommendation-api.onrender.com"
     }
   ]
