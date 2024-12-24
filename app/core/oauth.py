@@ -6,6 +6,9 @@ import os
 import secrets
 from starlette.responses import RedirectResponse
 import logging
+from datetime import datetime
+from app.core.auth import create_access_token
+from app.db.database import mongodb
 
 logger = logging.getLogger(__name__)
 
@@ -90,19 +93,25 @@ def generate_state_token() -> str:
     """Generate a secure state token for OAuth."""
     return secrets.token_urlsafe(32)
 
-def handle_oauth_callback(provider: str, user_data: dict, access_token: str) -> RedirectResponse:
+async def handle_oauth_callback(provider: str, user_data: dict, access_token: str) -> RedirectResponse:
     """Handle OAuth callback and redirect to frontend."""
     try:
-        frontend_url = os.getenv('FRONTEND_URL', 'https://ai-powered-content-recommendation-frontend.vercel.app')
+        # Create or update user in database
+        db_user = await create_or_update_oauth_user(user_data)
+        
+        # Generate JWT token
+        jwt_token = create_access_token(
+            data={"sub": db_user["email"], "user_id": str(db_user["_id"])}
+        )
         
         # Log the redirect attempt
         logger.info(f"Redirecting to frontend with user data: {user_data}")
         
         # Construct redirect URL with token and user data
         redirect_url = (
-            f"{frontend_url}/dashboard"
-            f"?access_token={access_token}"
-            f"&user={user_data['email']}"
+            f"{FRONTEND_URL}/dashboard"
+            f"?access_token={jwt_token}"
+            f"&email={user_data['email']}"
             f"&provider={provider}"
         )
         
@@ -115,3 +124,45 @@ def handle_oauth_callback(provider: str, user_data: dict, access_token: str) -> 
     except Exception as e:
         logger.error(f"Error handling OAuth callback: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to handle OAuth callback") 
+
+async def create_or_update_oauth_user(user_data: dict) -> dict:
+    """Create or update user from OAuth data."""
+    try:
+        # Check if user exists
+        existing_user = await mongodb.db.users.find_one({"email": user_data["email"]})
+        
+        if existing_user:
+            # Update existing user
+            update_data = {
+                "$set": {
+                    "last_login": datetime.utcnow(),
+                    "picture": user_data.get("picture"),
+                    "provider": user_data.get("provider")
+                }
+            }
+            await mongodb.db.users.update_one(
+                {"email": user_data["email"]},
+                update_data
+            )
+            return existing_user
+            
+        # Create new user
+        new_user = {
+            "email": user_data["email"],
+            "username": user_data["username"],
+            "picture": user_data.get("picture"),
+            "provider": user_data.get("provider"),
+            "created_at": datetime.utcnow(),
+            "last_login": datetime.utcnow()
+        }
+        
+        result = await mongodb.db.users.insert_one(new_user)
+        new_user["_id"] = result.inserted_id
+        return new_user
+        
+    except Exception as e:
+        logger.error(f"Error creating/updating OAuth user: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error creating/updating user account"
+        ) 
