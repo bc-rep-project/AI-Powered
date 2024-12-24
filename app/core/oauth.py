@@ -5,6 +5,9 @@ from fastapi import HTTPException
 import os
 import secrets
 from starlette.responses import RedirectResponse
+import logging
+
+logger = logging.getLogger(__name__)
 
 config = Config('.env')
 
@@ -53,74 +56,54 @@ oauth.register(
     },
 )
 
-async def get_oauth_user_data(provider: str, token: Dict) -> Dict:
+async def get_oauth_user_data(provider: str, token: dict) -> dict:
     """Get user data from OAuth provider."""
-    if provider == 'google':
-        client = oauth.google
-        resp = await client.get('https://www.googleapis.com/oauth2/v3/userinfo', token=token)
-        profile = resp.json()
-        return {
-            'email': profile['email'],
-            'username': profile.get('name', profile['email'].split('@')[0]),
-            'picture': profile.get('picture'),
-            'provider': 'google'
-        }
-    elif provider == 'github':
-        client = oauth.github
-        resp = await client.get('user', token=token)
-        profile = resp.json()
-        # Get primary email since it might be private
-        emails_resp = await client.get('user/emails', token=token)
-        emails = emails_resp.json()
-        primary_email = next(email['email'] for email in emails if email['primary'])
-        return {
-            'email': primary_email,
-            'username': profile.get('login'),
-            'picture': profile.get('avatar_url'),
-            'provider': 'github'
-        }
-    elif provider == 'facebook':
-        client = oauth.facebook
-        # Get user data including email
-        resp = await client.get(
-            'me',
-            token=token,
-            params={'fields': 'id,name,email,picture.type(large)'}
-        )
-        profile = resp.json()
-        return {
-            'email': profile['email'],
-            'username': profile.get('name').replace(' ', '_').lower(),
-            'picture': profile.get('picture', {}).get('data', {}).get('url'),
-            'provider': 'facebook'
-        }
-    else:
-        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+    try:
+        if provider == 'google':
+            user_info = token.get('userinfo')
+            if not user_info:
+                raise HTTPException(status_code=400, detail="Failed to get user info from Google")
+                
+            return {
+                "email": user_info.get('email'),
+                "username": user_info.get('name'),
+                "picture": user_info.get('picture'),
+                "provider": "google"
+            }
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported OAuth provider: {provider}")
+            
+    except Exception as e:
+        logger.error(f"Error getting OAuth user data: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get user data from {provider}")
 
-def get_oauth_redirect_uri(provider: str, request_base_url: str) -> str:
-    """Get OAuth redirect URI based on the provider."""
-    # Use the exact URIs that are configured in Google Cloud Console
-    if provider == 'google':
-        return "https://ai-recommendation-api.onrender.com/api/v1/auth/google/callback"
-    raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+def get_oauth_redirect_uri(provider: str, base_url: str) -> str:
+    """Get the OAuth redirect URI for the specified provider."""
+    return f"https://ai-recommendation-api.onrender.com/api/v1/auth/{provider}/callback"
 
 def generate_state_token() -> str:
-    """Generate a secure state token for CSRF protection."""
+    """Generate a secure state token for OAuth."""
     return secrets.token_urlsafe(32)
 
-def handle_oauth_callback(provider: str, user_data: Dict, access_token: str) -> RedirectResponse:
-    """Handle OAuth callback and redirect to frontend with user data."""
-    params = {
-        'access_token': access_token,
-        'user': user_data['email'],
-        'provider': provider
-    }
-    
-    # Construct query string
-    query_string = '&'.join([f"{key}={value}" for key, value in params.items()])
-    
-    # Redirect to frontend dashboard with user data
-    return RedirectResponse(
-        url=f"{FRONTEND_URL}/dashboard?{query_string}",
-        status_code=302
-    ) 
+def handle_oauth_callback(provider: str, user_data: dict, access_token: str) -> RedirectResponse:
+    """Handle OAuth callback and redirect to frontend."""
+    try:
+        frontend_url = os.getenv('FRONTEND_URL', 'https://ai-powered-content-recommendation-frontend.vercel.app')
+        
+        # Construct redirect URL with token and user data
+        redirect_url = (
+            f"{frontend_url}/dashboard"
+            f"?access_token={access_token}"
+            f"&user={user_data['email']}"
+            f"&provider={provider}"
+        )
+        
+        # Use 302 status code for temporary redirect
+        return RedirectResponse(
+            url=redirect_url,
+            status_code=302
+        )
+        
+    except Exception as e:
+        logger.error(f"Error handling OAuth callback: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to handle OAuth callback") 
