@@ -101,7 +101,8 @@ def get_oauth_redirect_uri(provider: str, request_base_url: str) -> str:
     """Get OAuth redirect URI based on the provider."""
     # Use the exact URIs that are configured in Google Cloud Console
     if provider == 'google':
-        return f"{FRONTEND_URL}/auth/google/callback"
+        return "https://ai-recommendation-api.onrender.com/api/v1/auth/google/callback"
+    raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
 
 def generate_state_token() -> str:
     """Generate a secure state token for CSRF protection."""
