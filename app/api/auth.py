@@ -146,15 +146,22 @@ async def oauth_login(provider: str, request: Request):
             detail=f"Unsupported OAuth provider. Supported providers: {', '.join(SUPPORTED_OAUTH_PROVIDERS)}"
         )
     
-    redirect_uri = get_oauth_redirect_uri(provider, str(request.base_url))
-    return await oauth.create_client(provider).authorize_redirect(request, redirect_uri)
+    try:
+        redirect_uri = get_oauth_redirect_uri(provider, str(request.base_url))
+        state = generate_state_token()
+        request.session['oauth_state'] = state
+        
+        client = oauth.create_client(provider)
+        if not client:
+            raise HTTPException(status_code=400, detail=f"OAuth client for {provider} not properly configured")
+            
+        return await client.authorize_redirect(request, redirect_uri, state=state)
+    except Exception as e:
+        logger.error(f"OAuth login error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"OAuth login failed: {str(e)}")
 
 @router.get("/{provider}/callback")
-async def oauth_callback(
-    provider: str,
-    request: Request,
-    db: Session = Depends(get_db)
-):
+async def oauth_callback(provider: str, request: Request):
     """Handle OAuth callback."""
     if provider not in SUPPORTED_OAUTH_PROVIDERS:
         raise HTTPException(
@@ -162,53 +169,20 @@ async def oauth_callback(
             detail=f"Unsupported OAuth provider. Supported providers: {', '.join(SUPPORTED_OAUTH_PROVIDERS)}"
         )
     
-    client = oauth.create_client(provider)
-    token = await client.authorize_access_token(request)
-    user_data = await get_oauth_user_data(provider, token)
-    
-    # Check if user exists
-    db_user = db.query(User).filter(User.email == user_data['email']).first()
-    
-    if not db_user:
-        # Create new user
-        db_user = User(
-            email=user_data['email'],
-            username=user_data['username'],
-            hashed_password=None,  # OAuth users don't have passwords
-            picture=user_data.get('picture'),
-            oauth_provider=provider
-        )
-        db.add(db_user)
-        db.commit()
-        db.refresh(db_user)
-    elif db_user.oauth_provider != provider:
-        # If user exists but with different provider, update the provider
-        db_user.oauth_provider = provider
-        db_user.picture = user_data.get('picture')
-        db.commit()
-        db.refresh(db_user)
-    
-    # Create access token
-    access_token = create_access_token(data={"sub": db_user.email})
-    
-    # Return token via post message to parent window
-    html_content = f"""
-        <html>
-            <body>
-                <script>
-                    window.opener.postMessage(
-                        {{
-                            type: 'social_auth_success',
-                            token: '{access_token}'
-                        }},
-                        '*'
-                    );
-                    window.close();
-                </script>
-            </body>
-        </html>
-    """
-    return Response(content=html_content, media_type="text/html")
+    try:
+        client = oauth.create_client(provider)
+        if not client:
+            raise HTTPException(status_code=400, detail=f"OAuth client for {provider} not properly configured")
+            
+        token = await client.authorize_access_token(request)
+        if not token:
+            raise HTTPException(status_code=400, detail="Failed to get access token")
+            
+        user_data = await get_oauth_user_data(provider, token)
+        return handle_oauth_callback(provider, user_data, token.get('access_token'))
+    except Exception as e:
+        logger.error(f"OAuth callback error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"OAuth callback failed: {str(e)}")
 
 @router.post("/forgot-password")
 async def forgot_password(

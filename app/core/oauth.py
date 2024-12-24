@@ -15,14 +15,12 @@ FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://ai-powered-content-recommendat
 # Google OAuth setup
 oauth.register(
     name='google',
-    server_metadata_url='https://accounts.google.com/o/oauth2/v2/auth',
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
     client_id=os.getenv('GOOGLE_CLIENT_ID'),
     client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
     client_kwargs={
         'scope': 'openid email profile',
-        'response_type': 'code',
-        'include_granted_scopes': 'true',
-        'access_type': 'offline'
+        'prompt': 'select_account'
     }
 )
 
