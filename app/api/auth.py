@@ -23,6 +23,7 @@ from app.core.monitoring import metrics_logger
 import logging
 from pydantic import BaseModel, EmailStr
 from passlib.hash import bcrypt
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -272,8 +273,40 @@ async def google_login(request: Request):
 async def google_callback(request: Request):
     """Handle Google OAuth callback"""
     try:
+        # Get the authorization code from the request
+        code = request.query_params.get('code')
+        state = request.query_params.get('state')
+        
+        if not code:
+            raise HTTPException(status_code=400, detail="Missing authorization code")
+            
+        # Verify state if it was stored in session
+        if 'oauth_state' in request.session:
+            if state != request.session['oauth_state']:
+                raise HTTPException(status_code=400, detail="Invalid state parameter")
+        
+        # Exchange the authorization code for an access token
         token = await oauth.google.authorize_access_token(request)
-        user = await get_oauth_user_data('google', token)
-        return handle_oauth_callback('google', user, token['access_token'])
+        if not token:
+            raise HTTPException(status_code=400, detail="Failed to get access token")
+            
+        # Get user info from Google
+        user_data = await get_oauth_user_data('google', token)
+        
+        # Create or update user in database
+        db_user = await create_or_update_oauth_user(user_data)
+        
+        # Generate JWT token
+        access_token = create_access_token(
+            data={"sub": db_user["email"], "user_id": str(db_user["_id"])}
+        )
+        
+        # Construct frontend URL with token
+        frontend_url = os.getenv('FRONTEND_URL', 'https://ai-powered-content-recommendation-frontend.vercel.app')
+        redirect_url = f"{frontend_url}/dashboard?access_token={access_token}&user={user_data['email']}"
+        
+        return RedirectResponse(url=redirect_url)
+        
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"OAuth callback error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
