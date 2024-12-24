@@ -60,10 +60,15 @@ async def get_oauth_user_data(provider: str, token: dict) -> dict:
     """Get user data from OAuth provider."""
     try:
         if provider == 'google':
-            user_info = token.get('userinfo')
-            if not user_info:
+            # Get user info from Google
+            resp = await oauth.google.get('https://www.googleapis.com/oauth2/v3/userinfo', token=token)
+            if resp.status_code != 200:
+                logger.error(f"Failed to get user info from Google. Status: {resp.status_code}")
                 raise HTTPException(status_code=400, detail="Failed to get user info from Google")
                 
+            user_info = resp.json()
+            logger.info(f"Received user info from Google: {user_info}")
+            
             return {
                 "email": user_info.get('email'),
                 "username": user_info.get('name'),
@@ -89,6 +94,9 @@ def handle_oauth_callback(provider: str, user_data: dict, access_token: str) -> 
     """Handle OAuth callback and redirect to frontend."""
     try:
         frontend_url = os.getenv('FRONTEND_URL', 'https://ai-powered-content-recommendation-frontend.vercel.app')
+        
+        # Log the redirect attempt
+        logger.info(f"Redirecting to frontend with user data: {user_data}")
         
         # Construct redirect URL with token and user data
         redirect_url = (

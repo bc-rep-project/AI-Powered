@@ -273,39 +273,27 @@ async def google_login(request: Request):
 async def google_callback(request: Request):
     """Handle Google OAuth callback"""
     try:
-        # Get the authorization code from the request
-        code = request.query_params.get('code')
-        state = request.query_params.get('state')
+        # Log the callback request
+        logger.info("Received Google OAuth callback")
         
-        if not code:
-            raise HTTPException(status_code=400, detail="Missing authorization code")
-            
-        # Verify state if it was stored in session
-        if 'oauth_state' in request.session:
-            if state != request.session['oauth_state']:
-                raise HTTPException(status_code=400, detail="Invalid state parameter")
-        
-        # Exchange the authorization code for an access token
+        # Get the authorization response
         token = await oauth.google.authorize_access_token(request)
         if not token:
+            logger.error("Failed to get access token from Google")
             raise HTTPException(status_code=400, detail="Failed to get access token")
             
-        # Get user info from Google
-        user_data = await get_oauth_user_data('google', token)
+        logger.info("Successfully obtained access token")
         
-        # Create or update user in database
-        db_user = await create_or_update_oauth_user(user_data)
+        # Get user info
+        user = await get_oauth_user_data('google', token)
+        if not user:
+            logger.error("Failed to get user data")
+            raise HTTPException(status_code=400, detail="Failed to get user data")
+            
+        logger.info(f"Successfully got user data: {user}")
         
-        # Generate JWT token
-        access_token = create_access_token(
-            data={"sub": db_user["email"], "user_id": str(db_user["_id"])}
-        )
-        
-        # Construct frontend URL with token
-        frontend_url = os.getenv('FRONTEND_URL', 'https://ai-powered-content-recommendation-frontend.vercel.app')
-        redirect_url = f"{frontend_url}/dashboard?access_token={access_token}&user={user_data['email']}"
-        
-        return RedirectResponse(url=redirect_url)
+        # Handle the callback
+        return handle_oauth_callback('google', user, token['access_token'])
         
     except Exception as e:
         logger.error(f"OAuth callback error: {str(e)}")
