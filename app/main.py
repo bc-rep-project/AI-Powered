@@ -8,10 +8,10 @@ from prometheus_client import make_asgi_app
 import asyncio
 from datetime import datetime
 import logging
-from app.middleware.rate_limit import setup_rate_limiting, limit_requests
 from app.database import test_database_connection, mongodb
 import os
 from app.middleware.logging import log_request
+from app.middleware.session import setup_session_middleware
 
 app = FastAPI(
     title="AI Content Recommendation Engine",
@@ -94,7 +94,7 @@ app.include_router(experiments.router)
 app.include_router(rbac.router)
 
 # Setup rate limiting
-setup_rate_limiting(app)
+# setup_rate_limiting(app)
 
 def custom_openapi():
     if app.openapi_schema:
@@ -211,7 +211,6 @@ async def health_check():
 
 # Example usage on endpoint
 @app.get("/api/recommendations")
-@limit_requests("5/minute")
 async def get_recommendations(request: Request):
     """Get personalized recommendations for the user"""
     return {"recommendations": []}

@@ -115,4 +115,62 @@ See README.md for detailed setup instructions.
 ## Related Documentation
 - [Backend README](./README.md)
 - [Frontend README](./frontend/README.md)
-- [API Documentation](./docs/api.md) 
+- [API Documentation](./docs/api.md)
+
+## Recent Updates (December 24, 2024)
+
+### Authentication and OAuth Implementation
+1. Implemented Google OAuth sign-in functionality
+2. Added Google sign-in button to login and registration pages
+3. Updated OAuth callback handling in backend
+4. Added session middleware for OAuth support
+5. Fixed CORS configuration for OAuth endpoints
+
+### Rate Limiting Implementation
+1. Initially encountered issues with slowapi RateLimitExceeded import
+2. Implemented custom rate limiting solution using in-memory request store
+3. Added IP-based rate limiting with configurable limits and windows
+4. Integrated rate limiting middleware with FastAPI application
+5. Added logging for rate limit events
+
+### Backend Fixes
+1. Fixed import issues in rate limiting middleware
+2. Updated slowapi version to 0.1.8 for compatibility
+3. Implemented proper error handling in middleware
+4. Added logging configuration for debugging
+5. Fixed MongoDB connection handling
+
+### Frontend Updates
+1. Added Google sign-in button with proper styling
+2. Created Google icon SVG for sign-in buttons
+3. Updated API configuration for OAuth endpoints
+4. Implemented OAuth callback handling
+5. Added proper error handling for authentication
+
+### Environment and Configuration
+1. Added required environment variables for Google OAuth
+2. Updated API endpoint configuration
+3. Added session middleware configuration
+4. Updated CORS settings for OAuth endpoints
+5. Added proper error logging configuration
+
+### Known Issues and Solutions
+1. Fixed 401 Unauthorized errors during login
+2. Resolved CORS issues with registration endpoint
+3. Fixed OAuth callback handling
+4. Addressed rate limiting implementation issues
+5. Resolved session management problems
+
+### Next Steps
+1. Implement proper error handling for OAuth flow
+2. Add comprehensive logging for debugging
+3. Implement proper session management
+4. Add user profile management
+5. Implement proper rate limiting persistence
+
+### Additional Technical Debt
+1. Need to implement proper rate limiting persistence
+2. Add comprehensive OAuth error handling
+3. Implement proper session cleanup
+4. Add proper monitoring for OAuth flows
+5. Implement proper user management 
