@@ -8,10 +8,11 @@ from prometheus_client import make_asgi_app
 import asyncio
 from datetime import datetime
 import logging
+from app.middleware.rate_limit import setup_rate_limiting, limit_requests
 from app.database import test_database_connection, mongodb
 import os
 from app.middleware.logging import log_request
-from app.middleware.session import setup_session_middleware
+from starlette.middleware.sessions import SessionMiddleware
 
 app = FastAPI(
     title="AI Content Recommendation Engine",
@@ -63,19 +64,26 @@ origins = [
     "http://localhost:3000",
     "https://ai-powered-content-recommendation-frontend.vercel.app",
     "https://ai-powered-content-recommendation-frontend-59wszecfo.vercel.app",
-    # Add any other frontend URLs
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://ai-powered-content-recommendation-frontend.vercel.app"
-    ],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"]
+)
+
+# Setup session middleware
+secret_key = os.getenv("SESSION_SECRET_KEY", "your-secret-key-here")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=secret_key,
+    session_cookie="session",
+    max_age=86400,  # 24 hours in seconds
+    same_site="lax",
+    https_only=True
 )
 
 # Mount Prometheus metrics endpoint
@@ -94,7 +102,7 @@ app.include_router(experiments.router)
 app.include_router(rbac.router)
 
 # Setup rate limiting
-# setup_rate_limiting(app)
+setup_rate_limiting(app)
 
 def custom_openapi():
     if app.openapi_schema:
