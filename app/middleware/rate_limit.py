@@ -1,7 +1,7 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import Request, HTTPException
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
+from starlette.responses import JSONResponse
 import logging
 
 logger = logging.getLogger(__name__)
@@ -9,8 +9,18 @@ logger = logging.getLogger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 
 @limiter.limit("5/minute")
-async def rate_limit_middleware(request: Request):
-    pass
+async def rate_limit_middleware(request: Request, call_next):
+    """Rate limiting middleware"""
+    try:
+        response = await call_next(request)
+        return response
+        
+    except Exception as e:
+        logger.error(f"Rate limiting error: {str(e)}")
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Too many requests"}
+        )
 
 def setup_rate_limiting(app: FastAPI):
     """Configure rate limiting for the FastAPI application"""

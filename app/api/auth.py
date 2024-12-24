@@ -273,31 +273,53 @@ async def google_login(request: Request):
 async def google_callback(request: Request):
     """Handle Google OAuth callback"""
     try:
-        # Log the callback request
-        logger.info("Received Google OAuth callback")
+        # Get the authorization code from the request
+        code = request.query_params.get("code")
+        state = request.query_params.get("state")
         
-        # Get the authorization response
+        if not code:
+            raise HTTPException(status_code=400, detail="Missing authorization code")
+            
+        # Verify state if it was stored in session
+        stored_state = request.session.get("oauth_state")
+        if stored_state and stored_state != state:
+            raise HTTPException(status_code=400, detail="Invalid state parameter")
+            
+        # Exchange the authorization code for an access token
         token = await oauth.google.authorize_access_token(request)
         if not token:
-            logger.error("Failed to get access token from Google")
             raise HTTPException(status_code=400, detail="Failed to get access token")
             
-        logger.info("Successfully obtained access token")
-        
-        # Get user info
-        user = await get_oauth_user_data('google', token)
-        if not user:
-            logger.error("Failed to get user data")
+        # Get user info from Google
+        user_data = await get_oauth_user_data('google', token)
+        if not user_data:
             raise HTTPException(status_code=400, detail="Failed to get user data")
             
-        logger.info(f"Successfully got user data: {user}")
+        # Create or update user in database
+        db_user = await create_or_update_oauth_user(user_data)
         
-        # Handle the callback
-        return handle_oauth_callback('google', user, token['access_token'])
+        # Generate JWT token
+        jwt_token = create_access_token(
+            data={"sub": db_user["email"], "user_id": str(db_user["_id"])}
+        )
+        
+        # Construct redirect URL with token
+        redirect_url = (
+            f"{FRONTEND_URL}/dashboard"
+            f"?access_token={jwt_token}"
+            f"&email={user_data['email']}"
+        )
+        
+        # Log successful authentication
+        logger.info(f"Successfully authenticated user: {user_data['email']}")
+        
+        return RedirectResponse(url=redirect_url, status_code=302)
         
     except Exception as e:
         logger.error(f"OAuth callback error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Redirect to login page with error
+        error_redirect = f"{FRONTEND_URL}/login?error=auth_failed"
+        return RedirectResponse(url=error_redirect, status_code=302)
 
 async def create_or_update_oauth_user(user_data: dict) -> dict:
     """Create or update user from OAuth data."""
