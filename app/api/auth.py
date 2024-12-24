@@ -310,3 +310,45 @@ async def google_callback(request: Request):
     except Exception as e:
         logger.error(f"OAuth callback error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+async def create_or_update_oauth_user(user_data: dict) -> dict:
+    """Create or update user from OAuth data."""
+    try:
+        # Check if user exists
+        existing_user = await mongodb.db.users.find_one({"email": user_data["email"]})
+        
+        if existing_user:
+            # Update existing user
+            update_data = {
+                "$set": {
+                    "last_login": datetime.utcnow(),
+                    "picture": user_data.get("picture"),
+                    "provider": user_data.get("provider")
+                }
+            }
+            await mongodb.db.users.update_one(
+                {"email": user_data["email"]},
+                update_data
+            )
+            return existing_user
+            
+        # Create new user
+        new_user = {
+            "email": user_data["email"],
+            "username": user_data["username"],
+            "picture": user_data.get("picture"),
+            "provider": user_data.get("provider"),
+            "created_at": datetime.utcnow(),
+            "last_login": datetime.utcnow()
+        }
+        
+        result = await mongodb.db.users.insert_one(new_user)
+        new_user["_id"] = result.inserted_id
+        return new_user
+        
+    except Exception as e:
+        logger.error(f"Error creating/updating OAuth user: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error creating/updating user account"
+        )
