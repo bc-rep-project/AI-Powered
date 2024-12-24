@@ -65,10 +65,13 @@ async def get_oauth_user_data(provider: str, token: dict) -> dict:
     """Get user data from OAuth provider."""
     try:
         if provider == 'google':
-            user_info = token.get('userinfo')
-            if not user_info:
-                raise HTTPException(status_code=400, detail="Failed to get user info from Google")
-                
+            client = oauth.create_client('google')
+            resp = await client.get('https://www.googleapis.com/oauth2/v3/userinfo', token=token)
+            if resp.status_code != 200:
+                logger.error(f"Failed to get user info from Google. Status: {resp.status_code}")
+                raise HTTPException(status_code=500, detail="Failed to get user info from Google")
+            
+            user_info = resp.json()
             return {
                 "email": user_info.get('email'),
                 "username": user_info.get('name'),

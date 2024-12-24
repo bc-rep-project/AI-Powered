@@ -156,6 +156,7 @@ async def google_callback(request: Request):
     try:
         # Log the callback request
         logger.info("Received Google OAuth callback")
+        logger.debug(f"Callback request: {request.url}")
         
         # Get the authorization response
         token = await oauth.google.authorize_access_token(request)
@@ -164,6 +165,7 @@ async def google_callback(request: Request):
             raise HTTPException(status_code=400, detail="Failed to get access token")
             
         logger.info("Successfully obtained access token")
+        logger.debug(f"Token response: {token}")
         
         # Get user info
         user = await get_oauth_user_data('google', token)
@@ -173,12 +175,29 @@ async def google_callback(request: Request):
             
         logger.info(f"Successfully got user data: {user}")
         
+        # Create or update user in database
+        await mongodb.db.users.update_one(
+            {"email": user["email"]},
+            {
+                "$set": {
+                    "username": user["username"],
+                    "picture": user.get("picture"),
+                    "provider": "google",
+                    "last_login": datetime.utcnow()
+                }
+            },
+            upsert=True
+        )
+        
+        # Generate access token
+        access_token = create_access_token(data={"sub": user["email"]})
+        
         # Handle the callback
-        return handle_oauth_callback('google', user, token['access_token'])
+        return handle_oauth_callback('google', user, access_token)
         
     except Exception as e:
         logger.error(f"OAuth callback error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"OAuth callback failed: {str(e)}")
 
 @router.post("/forgot-password")
 async def forgot_password(
