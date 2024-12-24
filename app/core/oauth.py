@@ -2,31 +2,19 @@ from typing import Dict, Optional
 from authlib.integrations.starlette_client import OAuth
 from starlette.config import Config
 from fastapi import HTTPException
-import os
-import secrets
-from starlette.responses import RedirectResponse
-import logging
-from datetime import datetime
-from app.core.auth import create_access_token
-from app.db.database import mongodb
-
-logger = logging.getLogger(__name__)
 
 config = Config('.env')
 
 oauth = OAuth(config)
 
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://ai-powered-content-recommendation-frontend.vercel.app')
-
 # Google OAuth setup
 oauth.register(
     name='google',
     server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-    client_id=os.getenv('GOOGLE_CLIENT_ID'),
-    client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
+    client_id=config('GOOGLE_CLIENT_ID', default=None),
+    client_secret=config('GOOGLE_CLIENT_SECRET', default=None),
     client_kwargs={
-        'scope': 'openid email profile',
-        'prompt': 'select_account'
+        'scope': 'openid email profile'
     }
 )
 
@@ -59,110 +47,50 @@ oauth.register(
     },
 )
 
-async def get_oauth_user_data(provider: str, token: dict) -> dict:
+async def get_oauth_user_data(provider: str, token: Dict) -> Dict:
     """Get user data from OAuth provider."""
-    try:
-        if provider == 'google':
-            # Get user info from Google
-            resp = await oauth.google.get('https://www.googleapis.com/oauth2/v3/userinfo', token=token)
-            if resp.status_code != 200:
-                logger.error(f"Failed to get user info from Google. Status: {resp.status_code}")
-                raise HTTPException(status_code=400, detail="Failed to get user info from Google")
-                
-            user_info = resp.json()
-            logger.info(f"Received user info from Google: {user_info}")
-            
-            return {
-                "email": user_info.get('email'),
-                "username": user_info.get('name'),
-                "picture": user_info.get('picture'),
-                "provider": "google"
-            }
-        else:
-            raise HTTPException(status_code=400, detail=f"Unsupported OAuth provider: {provider}")
-            
-    except Exception as e:
-        logger.error(f"Error getting OAuth user data: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to get user data from {provider}")
-
-def get_oauth_redirect_uri(provider: str, base_url: str) -> str:
-    """Get the OAuth redirect URI for the specified provider."""
-    return f"https://ai-recommendation-api.onrender.com/api/v1/auth/{provider}/callback"
-
-def generate_state_token() -> str:
-    """Generate a secure state token for OAuth."""
-    return secrets.token_urlsafe(32)
-
-async def handle_oauth_callback(provider: str, user_data: dict, access_token: str) -> RedirectResponse:
-    """Handle OAuth callback and redirect to frontend."""
-    try:
-        # Create or update user in database
-        db_user = await create_or_update_oauth_user(user_data)
-        
-        # Generate JWT token
-        jwt_token = create_access_token(
-            data={"sub": db_user["email"], "user_id": str(db_user["_id"])}
-        )
-        
-        # Log the redirect attempt
-        logger.info(f"Redirecting to frontend with user data: {user_data}")
-        
-        # Construct redirect URL with token and user data
-        redirect_url = (
-            f"{FRONTEND_URL}/dashboard"
-            f"?access_token={jwt_token}"
-            f"&email={user_data['email']}"
-            f"&provider={provider}"
-        )
-        
-        # Use 302 status code for temporary redirect
-        return RedirectResponse(
-            url=redirect_url,
-            status_code=302
-        )
-        
-    except Exception as e:
-        logger.error(f"Error handling OAuth callback: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to handle OAuth callback") 
-
-async def create_or_update_oauth_user(user_data: dict) -> dict:
-    """Create or update user from OAuth data."""
-    try:
-        # Check if user exists
-        existing_user = await mongodb.db.users.find_one({"email": user_data["email"]})
-        
-        if existing_user:
-            # Update existing user
-            update_data = {
-                "$set": {
-                    "last_login": datetime.utcnow(),
-                    "picture": user_data.get("picture"),
-                    "provider": user_data.get("provider")
-                }
-            }
-            await mongodb.db.users.update_one(
-                {"email": user_data["email"]},
-                update_data
-            )
-            return existing_user
-            
-        # Create new user
-        new_user = {
-            "email": user_data["email"],
-            "username": user_data["username"],
-            "picture": user_data.get("picture"),
-            "provider": user_data.get("provider"),
-            "created_at": datetime.utcnow(),
-            "last_login": datetime.utcnow()
+    if provider == 'google':
+        client = oauth.google
+        resp = await client.get('https://www.googleapis.com/oauth2/v3/userinfo', token=token)
+        profile = resp.json()
+        return {
+            'email': profile['email'],
+            'username': profile.get('name', profile['email'].split('@')[0]),
+            'picture': profile.get('picture'),
+            'provider': 'google'
         }
-        
-        result = await mongodb.db.users.insert_one(new_user)
-        new_user["_id"] = result.inserted_id
-        return new_user
-        
-    except Exception as e:
-        logger.error(f"Error creating/updating OAuth user: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="Error creating/updating user account"
-        ) 
+    elif provider == 'github':
+        client = oauth.github
+        resp = await client.get('user', token=token)
+        profile = resp.json()
+        # Get primary email since it might be private
+        emails_resp = await client.get('user/emails', token=token)
+        emails = emails_resp.json()
+        primary_email = next(email['email'] for email in emails if email['primary'])
+        return {
+            'email': primary_email,
+            'username': profile.get('login'),
+            'picture': profile.get('avatar_url'),
+            'provider': 'github'
+        }
+    elif provider == 'facebook':
+        client = oauth.facebook
+        # Get user data including email
+        resp = await client.get(
+            'me',
+            token=token,
+            params={'fields': 'id,name,email,picture.type(large)'}
+        )
+        profile = resp.json()
+        return {
+            'email': profile['email'],
+            'username': profile.get('name').replace(' ', '_').lower(),
+            'picture': profile.get('picture', {}).get('data', {}).get('url'),
+            'provider': 'facebook'
+        }
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+
+def get_oauth_redirect_uri(provider: str, request_base_url: str) -> str:
+    """Get OAuth redirect URI based on the provider."""
+    return f"{request_base_url}api/v1/auth/{provider}/callback" 

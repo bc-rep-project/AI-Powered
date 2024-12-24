@@ -9,7 +9,7 @@ from app.core.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     verify_password
 )
-from app.core.oauth import oauth, get_oauth_user_data, get_oauth_redirect_uri, generate_state_token, handle_oauth_callback
+from app.core.oauth import oauth, get_oauth_user_data, get_oauth_redirect_uri
 from app.models.user import User, UserCreate, Token, PasswordReset
 from app.db.database import mongodb
 import uuid
@@ -23,7 +23,6 @@ from app.core.monitoring import metrics_logger
 import logging
 from pydantic import BaseModel, EmailStr
 from passlib.hash import bcrypt
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -147,22 +146,15 @@ async def oauth_login(provider: str, request: Request):
             detail=f"Unsupported OAuth provider. Supported providers: {', '.join(SUPPORTED_OAUTH_PROVIDERS)}"
         )
     
-    try:
-        redirect_uri = get_oauth_redirect_uri(provider, str(request.base_url))
-        state = generate_state_token()
-        request.session['oauth_state'] = state
-        
-        client = oauth.create_client(provider)
-        if not client:
-            raise HTTPException(status_code=400, detail=f"OAuth client for {provider} not properly configured")
-            
-        return await client.authorize_redirect(request, redirect_uri, state=state)
-    except Exception as e:
-        logger.error(f"OAuth login error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"OAuth login failed: {str(e)}")
+    redirect_uri = get_oauth_redirect_uri(provider, str(request.base_url))
+    return await oauth.create_client(provider).authorize_redirect(request, redirect_uri)
 
 @router.get("/{provider}/callback")
-async def oauth_callback(provider: str, request: Request):
+async def oauth_callback(
+    provider: str,
+    request: Request,
+    db: Session = Depends(get_db)
+):
     """Handle OAuth callback."""
     if provider not in SUPPORTED_OAUTH_PROVIDERS:
         raise HTTPException(
@@ -170,20 +162,53 @@ async def oauth_callback(provider: str, request: Request):
             detail=f"Unsupported OAuth provider. Supported providers: {', '.join(SUPPORTED_OAUTH_PROVIDERS)}"
         )
     
-    try:
-        client = oauth.create_client(provider)
-        if not client:
-            raise HTTPException(status_code=400, detail=f"OAuth client for {provider} not properly configured")
-            
-        token = await client.authorize_access_token(request)
-        if not token:
-            raise HTTPException(status_code=400, detail="Failed to get access token")
-            
-        user_data = await get_oauth_user_data(provider, token)
-        return handle_oauth_callback(provider, user_data, token.get('access_token'))
-    except Exception as e:
-        logger.error(f"OAuth callback error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"OAuth callback failed: {str(e)}")
+    client = oauth.create_client(provider)
+    token = await client.authorize_access_token(request)
+    user_data = await get_oauth_user_data(provider, token)
+    
+    # Check if user exists
+    db_user = db.query(User).filter(User.email == user_data['email']).first()
+    
+    if not db_user:
+        # Create new user
+        db_user = User(
+            email=user_data['email'],
+            username=user_data['username'],
+            hashed_password=None,  # OAuth users don't have passwords
+            picture=user_data.get('picture'),
+            oauth_provider=provider
+        )
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+    elif db_user.oauth_provider != provider:
+        # If user exists but with different provider, update the provider
+        db_user.oauth_provider = provider
+        db_user.picture = user_data.get('picture')
+        db.commit()
+        db.refresh(db_user)
+    
+    # Create access token
+    access_token = create_access_token(data={"sub": db_user.email})
+    
+    # Return token via post message to parent window
+    html_content = f"""
+        <html>
+            <body>
+                <script>
+                    window.opener.postMessage(
+                        {{
+                            type: 'social_auth_success',
+                            token: '{access_token}'
+                        }},
+                        '*'
+                    );
+                    window.close();
+                </script>
+            </body>
+        </html>
+    """
+    return Response(content=html_content, media_type="text/html")
 
 @router.post("/forgot-password")
 async def forgot_password(
@@ -260,105 +285,3 @@ def get_password_hash(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.verify(plain_password, hashed_password)
-
-@router.get("/google")
-async def google_login(request: Request):
-    """Initiate Google OAuth login flow"""
-    redirect_uri = get_oauth_redirect_uri('google', str(request.base_url))
-    state = generate_state_token()
-    request.session['oauth_state'] = state
-    return await oauth.google.authorize_redirect(request, redirect_uri, state=state)
-
-@router.get("/google/callback")
-async def google_callback(request: Request):
-    """Handle Google OAuth callback"""
-    try:
-        # Get the authorization code from the request
-        code = request.query_params.get("code")
-        state = request.query_params.get("state")
-        
-        if not code:
-            raise HTTPException(status_code=400, detail="Missing authorization code")
-            
-        # Verify state if it was stored in session
-        stored_state = request.session.get("oauth_state")
-        if stored_state and stored_state != state:
-            raise HTTPException(status_code=400, detail="Invalid state parameter")
-            
-        # Exchange the authorization code for an access token
-        token = await oauth.google.authorize_access_token(request)
-        if not token:
-            raise HTTPException(status_code=400, detail="Failed to get access token")
-            
-        # Get user info from Google
-        user_data = await get_oauth_user_data('google', token)
-        if not user_data:
-            raise HTTPException(status_code=400, detail="Failed to get user data")
-            
-        # Create or update user in database
-        db_user = await create_or_update_oauth_user(user_data)
-        
-        # Generate JWT token
-        jwt_token = create_access_token(
-            data={"sub": db_user["email"], "user_id": str(db_user["_id"])}
-        )
-        
-        # Construct redirect URL with token
-        redirect_url = (
-            f"{FRONTEND_URL}/dashboard"
-            f"?access_token={jwt_token}"
-            f"&email={user_data['email']}"
-        )
-        
-        # Log successful authentication
-        logger.info(f"Successfully authenticated user: {user_data['email']}")
-        
-        return RedirectResponse(url=redirect_url, status_code=302)
-        
-    except Exception as e:
-        logger.error(f"OAuth callback error: {str(e)}")
-        # Redirect to login page with error
-        error_redirect = f"{FRONTEND_URL}/login?error=auth_failed"
-        return RedirectResponse(url=error_redirect, status_code=302)
-
-async def create_or_update_oauth_user(user_data: dict) -> dict:
-    """Create or update user from OAuth data."""
-    try:
-        # Check if user exists
-        existing_user = await mongodb.db.users.find_one({"email": user_data["email"]})
-        
-        if existing_user:
-            # Update existing user
-            update_data = {
-                "$set": {
-                    "last_login": datetime.utcnow(),
-                    "picture": user_data.get("picture"),
-                    "provider": user_data.get("provider")
-                }
-            }
-            await mongodb.db.users.update_one(
-                {"email": user_data["email"]},
-                update_data
-            )
-            return existing_user
-            
-        # Create new user
-        new_user = {
-            "email": user_data["email"],
-            "username": user_data["username"],
-            "picture": user_data.get("picture"),
-            "provider": user_data.get("provider"),
-            "created_at": datetime.utcnow(),
-            "last_login": datetime.utcnow()
-        }
-        
-        result = await mongodb.db.users.insert_one(new_user)
-        new_user["_id"] = result.inserted_id
-        return new_user
-        
-    except Exception as e:
-        logger.error(f"Error creating/updating OAuth user: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="Error creating/updating user account"
-        )
