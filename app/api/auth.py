@@ -9,7 +9,7 @@ from app.core.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     verify_password
 )
-from app.core.oauth import oauth, get_oauth_user_data, get_oauth_redirect_uri
+from app.core.oauth import oauth, get_oauth_user_data, get_oauth_redirect_uri, generate_state_token, handle_oauth_callback
 from app.models.user import User, UserCreate, Token, PasswordReset
 from app.db.database import mongodb
 import uuid
@@ -285,3 +285,21 @@ def get_password_hash(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.verify(plain_password, hashed_password)
+
+@router.get("/google")
+async def google_login(request: Request):
+    """Initiate Google OAuth login flow"""
+    redirect_uri = get_oauth_redirect_uri('google', str(request.base_url))
+    state = generate_state_token()
+    request.session['oauth_state'] = state
+    return await oauth.google.authorize_redirect(request, redirect_uri, state=state)
+
+@router.get("/google/callback")
+async def google_callback(request: Request):
+    """Handle Google OAuth callback"""
+    try:
+        token = await oauth.google.authorize_access_token(request)
+        user = await get_oauth_user_data('google', token)
+        return handle_oauth_callback('google', user, token['access_token'])
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

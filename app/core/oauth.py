@@ -3,19 +3,26 @@ from authlib.integrations.starlette_client import OAuth
 from starlette.config import Config
 from fastapi import HTTPException
 import os
+import secrets
+from starlette.responses import RedirectResponse
 
 config = Config('.env')
 
 oauth = OAuth(config)
 
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://ai-powered-content-recommendation-frontend.vercel.app')
+
 # Google OAuth setup
 oauth.register(
     name='google',
-    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    server_metadata_url='https://accounts.google.com/o/oauth2/v2/auth',
     client_id=os.getenv('GOOGLE_CLIENT_ID'),
     client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
     client_kwargs={
-        'scope': 'openid email profile'
+        'scope': 'openid email profile',
+        'response_type': 'code',
+        'include_granted_scopes': 'true',
+        'access_type': 'offline'
     }
 )
 
@@ -94,12 +101,27 @@ async def get_oauth_user_data(provider: str, token: Dict) -> Dict:
 
 def get_oauth_redirect_uri(provider: str, request_base_url: str) -> str:
     """Get OAuth redirect URI based on the provider."""
-    # Remove any trailing slashes
-    frontend_url = os.getenv('FRONTEND_URL', 'https://ai-powered-content-recommendation-frontend.vercel.app').rstrip('/')
-    backend_url = os.getenv('BACKEND_URL', 'https://ai-recommendation-api.onrender.com').rstrip('/')
+    # Use the exact URIs that are configured in Google Cloud Console
+    if provider == 'google':
+        return f"{FRONTEND_URL}/auth/google/callback"
+
+def generate_state_token() -> str:
+    """Generate a secure state token for CSRF protection."""
+    return secrets.token_urlsafe(32)
+
+def handle_oauth_callback(provider: str, user_data: Dict, access_token: str) -> RedirectResponse:
+    """Handle OAuth callback and redirect to frontend with user data."""
+    params = {
+        'access_token': access_token,
+        'user': user_data['email'],
+        'provider': provider
+    }
     
-    # For the frontend
-    if provider == 'google-frontend':
-        return frontend_url
-    # For the backend
-    return backend_url 
+    # Construct query string
+    query_string = '&'.join([f"{key}={value}" for key, value in params.items()])
+    
+    # Redirect to frontend dashboard with user data
+    return RedirectResponse(
+        url=f"{FRONTEND_URL}/dashboard?{query_string}",
+        status_code=302
+    ) 
