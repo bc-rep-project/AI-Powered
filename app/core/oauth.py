@@ -2,6 +2,7 @@ from typing import Dict, Optional
 from authlib.integrations.starlette_client import OAuth
 from starlette.config import Config
 from fastapi import HTTPException
+import os
 
 config = Config('.env')
 
@@ -11,8 +12,8 @@ oauth = OAuth(config)
 oauth.register(
     name='google',
     server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-    client_id=config('GOOGLE_CLIENT_ID', default=None),
-    client_secret=config('GOOGLE_CLIENT_SECRET', default=None),
+    client_id=os.getenv('GOOGLE_CLIENT_ID'),
+    client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
     client_kwargs={
         'scope': 'openid email profile'
     }
@@ -93,4 +94,12 @@ async def get_oauth_user_data(provider: str, token: Dict) -> Dict:
 
 def get_oauth_redirect_uri(provider: str, request_base_url: str) -> str:
     """Get OAuth redirect URI based on the provider."""
-    return f"{request_base_url}api/v1/auth/{provider}/callback" 
+    # Remove any trailing slashes
+    frontend_url = os.getenv('FRONTEND_URL', 'https://ai-powered-content-recommendation-frontend.vercel.app').rstrip('/')
+    backend_url = os.getenv('BACKEND_URL', 'https://ai-recommendation-api.onrender.com').rstrip('/')
+    
+    # For the frontend
+    if provider == 'google-frontend':
+        return frontend_url
+    # For the backend
+    return backend_url 

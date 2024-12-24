@@ -12,6 +12,7 @@ from app.middleware.rate_limit import setup_rate_limiting, limit_requests
 from app.database import test_database_connection, mongodb
 import os
 from app.middleware.logging import log_request
+from app.middleware.session import setup_session_middleware
 
 app = FastAPI(
     title="AI Content Recommendation Engine",
@@ -77,6 +78,9 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"]
 )
+
+# Setup session middleware for OAuth
+setup_session_middleware(app)
 
 # Mount Prometheus metrics endpoint
 metrics_app = make_asgi_app()
@@ -216,12 +220,4 @@ async def get_recommendations(request: Request):
     """Get personalized recommendations for the user"""
     return {"recommendations": []}
 
-# Add this at the end of the file
-if __name__ == "__main__":
-    import uvicorn
-    import os
-    
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False) 
-
-app.middleware("http")(log_request) 
+app.middleware("http")(log_request)
