@@ -24,3 +24,4 @@ httpx==0.16.1
 certifi>=2021.10.8
 sentry-sdk>=1.0.0
 itsdangerous>=2.0.0
+PyJWT>=2.8.0
