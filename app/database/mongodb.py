@@ -4,18 +4,20 @@ import certifi
 from urllib.parse import urlparse
 from ..core.config import settings
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 class MongoDBConnection:
-    client: AsyncIOMotorClient = None
+    client: Optional[AsyncIOMotorClient] = None
     db = None
 
-    async def connect_to_mongodb(self):
+    async def connect_to_mongodb(self) -> bool:
         """Connect to MongoDB with proper SSL configuration"""
         try:
+            # Skip MongoDB connection if URI is not configured
             if not settings.MONGODB_URI:
-                logger.error("MONGODB_URI not set in environment variables")
+                logger.info("MongoDB URI not configured, skipping connection")
                 return False
 
             # Configure MongoDB client with modern SSL settings
@@ -28,16 +30,17 @@ class MongoDBConnection:
                 w="majority"
             )
             
-            # Get database using configured name
-            self.db = self.client[settings.MONGODB_DB_NAME]
+            # Get database using configured name or default
+            db_name = getattr(settings, 'MONGODB_DB_NAME', 'ai_recommendation')
+            self.db = self.client[db_name]
             
             # Test connection
             await self.db.command('ping')
-            logger.info(f"Successfully connected to MongoDB database: {settings.MONGODB_DB_NAME}")
+            logger.info(f"Successfully connected to MongoDB database: {db_name}")
             return True
             
         except Exception as e:
-            logger.error(f"MongoDB connection error: {str(e)}")
+            logger.warning(f"MongoDB connection error: {str(e)}")
             return False
 
     async def close_mongodb_connection(self):

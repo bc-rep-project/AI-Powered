@@ -3,19 +3,9 @@ from sqlalchemy import create_engine, Column, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+from ..core.config import settings
 
-class Settings(BaseSettings):
-    DB_USER: str
-    DB_PASSWORD: str
-    DB_HOST: str
-    DB_PORT: str = "6543"
-    DB_NAME: str
-
-    class Config:
-        env_file = ".env"
-
-settings = Settings()
-
+# Create database URL from environment variables
 DATABASE_URL = f"postgresql://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
 
 engine = create_engine(DATABASE_URL)
