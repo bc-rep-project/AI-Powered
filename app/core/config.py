@@ -4,26 +4,41 @@ import secrets
 
 class Settings(BaseSettings):
     # Authentication
-    SECRET_KEY: str = secrets.token_urlsafe(32)
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int
     
-    # Database
+    # Model Configuration
+    ACTIVATION: str
+    BATCH_SIZE: int
+    DROPOUT_RATE: float
+    EARLY_STOPPING_PATIENCE: int
+    EMBEDDING_DIM: int
+    HIDDEN_LAYERS: str  # Will be parsed from string
+    LEARNING_RATE: float
+    MAX_SEQUENCE_LENGTH: int
+    MODEL_CHECKPOINT_DIR: str
+    MODEL_NAME: str
+    MODEL_SAVE_PATH: str
+    
+    # Database Configuration
     DATABASE_URL: Optional[str] = None
+    DB_HOST: str
+    DB_NAME: str
+    DB_PASSWORD: str
+    DB_PORT: str
+    DB_USER: str
     
-    # MongoDB
-    MONGODB_URI: str
-    MONGODB_DB_NAME: str
+    # API Configuration
+    FRONTEND_URL: str
     
-    # Redis
-    REDIS_HOST: str
-    REDIS_PORT: int
-    REDIS_DB: int
-    REDIS_PASSWORD: Optional[str] = None
+    # OAuth Configuration
+    GOOGLE_CLIENT_ID: str
+    GOOGLE_CLIENT_SECRET: str
     
-    # API
-    API_V1_STR: str = "/api/v1"
-    PROJECT_NAME: str = "AI Content Recommendation"
+    # Security and Monitoring
+    HF_TOKEN: str
+    JWT_ALGORITHM: str
+    LOG_LEVEL: str
+    METRICS_PORT: int
     
     class Config:
         env_file = ".env"
