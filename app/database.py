@@ -1,10 +1,13 @@
 from pydantic_settings import BaseSettings
-from sqlalchemy import create_engine, Column, Integer, String, text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 import motor.motor_asyncio
 import os
 from urllib.parse import quote_plus
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Settings(BaseSettings):
     DB_USER: str
@@ -21,6 +24,7 @@ settings = Settings()
 DATABASE_URL = f"postgresql://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
 
 engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Create declarative base
 Base = declarative_base()
@@ -36,24 +40,25 @@ try:
     db = mongodb.recommendation_engine  # Use specific database name
     
     # Test connection immediately
-    await db.command('ping')
+    mongodb.admin.command('ping')
     logger.info("Successfully connected to MongoDB")
 except Exception as e:
     logger.error(f"MongoDB connection failed: {str(e)}")
     raise
 
+# Dependency
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 async def test_database_connection():
     try:
         # Verify connection
-        await client.admin.command('ping')
+        await mongodb.admin.command('ping')
         return True
     except Exception as e:
-        print(f"Database connection failed: {str(e)}")
+        logger.error(f"Database connection failed: {str(e)}")
         return False
-
-# Example table relationships
-class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True)
-    email = Column(String, unique=True)
-    preferences = Column(JSONB)  # Using JSONB for flexible preference storage

@@ -5,31 +5,17 @@ from datetime import datetime, timedelta
 from passlib.context import CryptContext
 import jwt
 from typing import Optional
+import uuid
+from sqlalchemy.orm import Session
 from ..core.config import settings
+from ..database import get_db
+from ..models.user import UserInDB, UserCreate, User, Token, TokenData
 
 router = APIRouter()
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-# Models
-class UserCreate(BaseModel):
-    email: EmailStr
-    username: str
-    password: str
-
-class User(BaseModel):
-    email: EmailStr
-    username: str
-    disabled: Optional[bool] = None
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-class TokenData(BaseModel):
-    email: Optional[str] = None
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/token")
 
 # Helper functions
 def verify_password(plain_password, hashed_password):
@@ -48,11 +34,36 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
+# Database operations
+async def get_user_by_email(db: Session, email: str):
+    return db.query(UserInDB).filter(UserInDB.email == email).first()
+
+async def create_user(db: Session, user_data: dict):
+    db_user = UserInDB(
+        id=str(uuid.uuid4()),
+        email=user_data["email"],
+        username=user_data["username"],
+        hashed_password=user_data["hashed_password"],
+        is_active=True
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+async def authenticate_user(db: Session, email: str, password: str):
+    user = await get_user_by_email(db, email)
+    if not user:
+        return False
+    if not verify_password(password, user.hashed_password):
+        return False
+    return user
+
 # Routes
 @router.post("/register", response_model=User)
-async def register(user: UserCreate):
+async def register(user: UserCreate, db: Session = Depends(get_db)):
     # Check if user already exists
-    existing_user = await get_user_by_email(user.email)
+    existing_user = await get_user_by_email(db, user.email)
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -65,21 +76,23 @@ async def register(user: UserCreate):
         "email": user.email,
         "username": user.username,
         "hashed_password": hashed_password,
-        "disabled": False
     }
     
     # Save user to database
-    new_user = await create_user(user_data)
+    new_user = await create_user(db, user_data)
     
     return User(
-        email=new_user["email"],
-        username=new_user["username"],
-        disabled=new_user["disabled"]
+        id=new_user.id,
+        email=new_user.email,
+        username=new_user.username,
+        is_active=new_user.is_active,
+        created_at=new_user.created_at,
+        updated_at=new_user.updated_at
     )
 
 @router.post("/token", response_model=Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = await authenticate_user(form_data.username, form_data.password)
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = await authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -89,25 +102,8 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user["email"]},
+        data={"sub": user.email},
         expires_delta=access_token_expires
     )
     
-    return {"access_token": access_token, "token_type": "bearer"}
-
-# Database operations (to be implemented)
-async def get_user_by_email(email: str):
-    # TODO: Implement database query
-    pass
-
-async def create_user(user_data: dict):
-    # TODO: Implement database operation
-    pass
-
-async def authenticate_user(email: str, password: str):
-    user = await get_user_by_email(email)
-    if not user:
-        return False
-    if not verify_password(password, user["hashed_password"]):
-        return False
-    return user 
+    return {"access_token": access_token, "token_type": "bearer"} 
