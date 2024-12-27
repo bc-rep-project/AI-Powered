@@ -174,3 +174,197 @@ See README.md for detailed setup instructions.
 3. Implement proper session cleanup
 4. Add proper monitoring for OAuth flows
 5. Implement proper user management 
+
+## Backend API Testing and Deployment
+
+### Authentication Endpoints Testing
+- Tested the registration endpoint at `https://ai-recommendation-api.onrender.com/api/v1/register`
+- Tested the login endpoint at `https://ai-recommendation-api.onrender.com/api/v1/token`
+- Encountered initial issues with server availability (503 errors)
+- Successfully received JWT token after login
+
+### Deployment Configuration
+- Added PyJWT package to `requirements.txt` to resolve ModuleNotFoundError
+- Updated deployment configuration on Render.com
+- Monitored deployment status and server health
+
+### API Endpoints Status
+- Registration endpoint: POST `/api/v1/register`
+  - Status: Tested
+  - Initial issues with server response
+- Login endpoint: POST `/api/v1/token`
+  - Status: Successfully tested
+  - Returns JWT token
+- Health check endpoint
+  - Status: Initially returning 503 error
+  - Used for monitoring server availability
+
+### Environment Setup
+- Added necessary environment variables
+- Configured CORS settings
+- Set up authentication middleware
+- Implemented JWT token handling
+
+### Database Integration
+- Configured PostgreSQL connection
+- Added MongoDB support for recommendation engine
+- Set up database models and schemas
+- Implemented user authentication storage
+
+### API Features
+- User registration and authentication
+- JWT token-based authorization
+- Health monitoring endpoints
+- CORS configuration for frontend integration
+- Error handling and validation
+
+### Frontend Integration
+- Connected frontend to backend API
+- Implemented authentication flow
+- Added error handling for API responses
+- Set up environment variables for API URLs
+
+### Deployment Process
+1. Added required packages to requirements.txt
+2. Configured Render.com deployment settings
+3. Set up environment variables
+4. Monitored deployment status
+5. Tested endpoints after deployment
+
+### Testing Methods
+- Used curl commands for endpoint testing
+- Implemented health checks
+- Tested authentication flow
+- Verified JWT token generation and validation
+
+### Security Measures
+- Implemented password hashing
+- Added JWT token authentication
+- Configured secure CORS policies
+- Protected sensitive routes
+- Environment variable management
+
+### Next Steps
+- Continue monitoring server health
+- Implement additional security measures
+- Add more comprehensive error handling
+- Enhance API documentation
+- Set up automated testing 
+
+## API Testing with Postman
+
+### Base URL
+```
+https://ai-recommendation-api.onrender.com
+```
+
+### Authentication Endpoints
+
+#### Register User
+```bash
+curl -X POST "https://ai-recommendation-api.onrender.com/api/v1/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "username": "testuser",
+    "password": "testpassword123"
+  }'
+```
+
+#### Login User
+```bash
+curl -X POST "https://ai-recommendation-api.onrender.com/api/v1/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=test@example.com&password=testpassword123"
+```
+
+#### Get Current User
+```bash
+curl -X GET "https://ai-recommendation-api.onrender.com/api/v1/me" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+### Health Check Endpoints
+
+#### API Health Check
+```bash
+curl -X GET "https://ai-recommendation-api.onrender.com/health"
+```
+
+### Content Endpoints
+
+#### Get Recommendations
+```bash
+curl -X GET "https://ai-recommendation-api.onrender.com/api/v1/recommendations" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+#### Get Content by Category
+```bash
+curl -X GET "https://ai-recommendation-api.onrender.com/api/v1/content/explore?category=Technology" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+#### Search Content
+```bash
+curl -X GET "https://ai-recommendation-api.onrender.com/api/v1/content/search?q=machine%20learning" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+### User Preferences
+
+#### Update User Settings
+```bash
+curl -X PUT "https://ai-recommendation-api.onrender.com/api/v1/users/settings" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email_notifications": true,
+    "content_preferences": {
+      "categories": ["Technology", "Science"],
+      "difficulty": "intermediate"
+    }
+  }'
+```
+
+#### Get User Favorites
+```bash
+curl -X GET "https://ai-recommendation-api.onrender.com/api/v1/users/favorites" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+### Model Training
+
+#### Trigger Model Training
+```bash
+curl -X POST "https://ai-recommendation-api.onrender.com/api/v1/train" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "training_data": []
+  }'
+```
+
+### Response Examples
+
+#### Successful Login Response
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "token_type": "bearer"
+}
+```
+
+#### Error Response
+```json
+{
+  "detail": "Error message here"
+}
+```
+
+### Testing Notes
+1. Replace `YOUR_ACCESS_TOKEN` with the actual JWT token received from login
+2. All authenticated endpoints require the Authorization header
+3. The health check endpoint is public and doesn't require authentication
+4. Content-Type header must match the data format being sent
+5. For form-urlencoded requests, data must be properly encoded 
