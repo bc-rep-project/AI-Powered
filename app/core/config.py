@@ -11,11 +11,22 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: Optional[str] = None
     
+    # MongoDB
+    MONGODB_URI: str
+    MONGODB_DB_NAME: str
+    
+    # Redis
+    REDIS_HOST: str
+    REDIS_PORT: int
+    REDIS_DB: int
+    REDIS_PASSWORD: Optional[str] = None
+    
     # API
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "AI Content Recommendation"
     
     class Config:
         env_file = ".env"
+        case_sensitive = True
 
 settings = Settings() 

@@ -2,17 +2,29 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.server_api import ServerApi
 import certifi
 from urllib.parse import urlparse
+from ..core.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 class MongoDBConnection:
     client: AsyncIOMotorClient = None
     db = None
 
-    async def connect_to_mongodb(self, mongodb_url: str):
+    async def connect_to_mongodb(self):
         """Connect to MongoDB with proper SSL configuration"""
         try:
+            if not settings.MONGODB_URI:
+                logger.error("MongoDB URI not set in environment variables")
+                return False
+                
+            if not settings.MONGODB_DB_NAME:
+                logger.error("MongoDB database name not set in environment variables")
+                return False
+
             # Configure MongoDB client with modern SSL settings
             self.client = AsyncIOMotorClient(
-                mongodb_url,
+                settings.MONGODB_URI,
                 server_api=ServerApi('1'),
                 tlsCAFile=certifi.where(),
                 ssl=True,
@@ -20,28 +32,22 @@ class MongoDBConnection:
                 w="majority"
             )
             
-            # Parse database name from URL
-            # If not in URL, use default name
-            parsed_url = urlparse(mongodb_url)
-            db_name = parsed_url.path.lstrip('/')
-            if not db_name or db_name == '':
-                db_name = 'recommendation_engine'  # Default database name
-            
-            # Get database
-            self.db = self.client[db_name]
+            # Get database using configured name
+            self.db = self.client[settings.MONGODB_DB_NAME]
             
             # Test connection
             await self.db.command('ping')
-            print(f"Successfully connected to MongoDB database: {db_name}")
+            logger.info(f"Successfully connected to MongoDB database: {settings.MONGODB_DB_NAME}")
             return True
             
         except Exception as e:
-            print(f"MongoDB connection error: {str(e)}")
+            logger.error(f"MongoDB connection error: {str(e)}")
             return False
 
     async def close_mongodb_connection(self):
         """Close MongoDB connection"""
         if self.client:
             self.client.close()
+            logger.info("MongoDB connection closed")
 
 mongodb = MongoDBConnection()
