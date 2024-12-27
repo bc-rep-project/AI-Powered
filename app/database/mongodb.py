@@ -15,11 +15,7 @@ class MongoDBConnection:
         """Connect to MongoDB with proper SSL configuration"""
         try:
             if not settings.MONGODB_URI:
-                logger.error("MongoDB URI not set in environment variables")
-                return False
-                
-            if not settings.MONGODB_DB_NAME:
-                logger.error("MongoDB database name not set in environment variables")
+                logger.error("MONGODB_URI not set in environment variables")
                 return False
 
             # Configure MongoDB client with modern SSL settings

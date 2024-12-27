@@ -27,7 +27,18 @@ class Settings(BaseSettings):
     DB_PORT: str
     DB_USER: str
     
+    # MongoDB Configuration
+    MONGODB_URI: str
+    MONGODB_DB_NAME: str = "ai_recommendation"
+    
+    # Redis Configuration
+    REDIS_HOST: str
+    REDIS_PORT: int
+    REDIS_DB: int
+    REDIS_PASSWORD: Optional[str] = None
+    
     # API Configuration
+    API_V1_STR: str = "/api/v1"  # Default value for API prefix
     FRONTEND_URL: str
     
     # OAuth Configuration
