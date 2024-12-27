@@ -4,7 +4,7 @@ import secrets
 
 class Settings(BaseSettings):
     # Authentication
-    ACCESS_TOKEN_EXPIRE_MINUTES: int
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # Model Configuration
     ACTIVATION: str
@@ -28,13 +28,13 @@ class Settings(BaseSettings):
     DB_USER: str
     
     # MongoDB Configuration
-    MONGODB_URI: str
+    MONGODB_URI: Optional[str] = None
     MONGODB_DB_NAME: str = "ai_recommendation"
     
-    # Redis Configuration
-    REDIS_HOST: str
-    REDIS_PORT: int
-    REDIS_DB: int
+    # Redis Configuration (all optional with defaults)
+    REDIS_HOST: Optional[str] = None
+    REDIS_PORT: Optional[int] = 6379
+    REDIS_DB: Optional[int] = 0
     REDIS_PASSWORD: Optional[str] = None
     
     # API Configuration
@@ -47,9 +47,9 @@ class Settings(BaseSettings):
     
     # Security and Monitoring
     HF_TOKEN: str
-    JWT_ALGORITHM: str
-    LOG_LEVEL: str
-    METRICS_PORT: int
+    JWT_ALGORITHM: str = "HS256"
+    LOG_LEVEL: str = "INFO"
+    METRICS_PORT: int = 9090
     
     class Config:
         env_file = ".env"

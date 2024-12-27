@@ -1,34 +1,41 @@
 import redis
 from ..core.config import settings
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 class RedisConnection:
-    client = None
+    client: Optional[redis.Redis] = None
 
-    def connect_to_redis(self):
+    def connect_to_redis(self) -> bool:
         """Connect to Redis with configuration from settings"""
         try:
+            # Skip Redis connection if host is not configured
             if not settings.REDIS_HOST:
-                logger.error("REDIS_HOST not set in environment variables")
+                logger.info("Redis host not configured, skipping connection")
                 return False
+
+            # Use default values for optional settings
+            port = getattr(settings, 'REDIS_PORT', 6379)
+            db = getattr(settings, 'REDIS_DB', 0)
+            password = getattr(settings, 'REDIS_PASSWORD', None)
 
             self.client = redis.Redis(
                 host=settings.REDIS_HOST,
-                port=settings.REDIS_PORT,
-                db=settings.REDIS_DB,
-                password=settings.REDIS_PASSWORD,
+                port=port,
+                db=db,
+                password=password,
                 decode_responses=True
             )
             
             # Test connection
             self.client.ping()
-            logger.info(f"Successfully connected to Redis at {settings.REDIS_HOST}:{settings.REDIS_PORT}")
+            logger.info(f"Successfully connected to Redis at {settings.REDIS_HOST}:{port}")
             return True
             
         except Exception as e:
-            logger.error(f"Redis connection error: {str(e)}")
+            logger.warning(f"Redis connection error: {str(e)}")
             return False
 
     def close_redis_connection(self):
