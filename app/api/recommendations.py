@@ -1,90 +1,83 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from app.core.auth import get_current_user
-from app.models.user import User
-from app.models.recommendation import RecommendationResponse, PaginatedResponse
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime
-import uuid
+from ..database import get_db
+from ..services.recommendation import RecommendationEngine
+from pydantic import BaseModel
 
-router = APIRouter(
-    prefix="/recommendations",
-    tags=["recommendations"]
-)
+router = APIRouter()
 
-@router.get("/", response_model=PaginatedResponse[RecommendationResponse])
+class Recommendation(BaseModel):
+    content_id: int
+    title: str
+    type: str
+    score: float
+
+@router.get("/recommendations/", response_model=List[Recommendation])
 async def get_recommendations(
-    current_user: User = Depends(get_current_user),
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
-    category: Optional[str] = None,
-    min_score: Optional[float] = Query(None, ge=0, le=1)
+    user_id: int,
+    content_type: Optional[str] = None,
+    method: str = "hybrid",
+    limit: int = 10,
+    db: Session = Depends(get_db)
 ):
-    """Get personalized recommendations with pagination and filtering."""
+    """
+    Get personalized recommendations for a user.
+    Method can be one of: 'collaborative', 'content-based', or 'hybrid'
+    """
     try:
-        # Generate dummy recommendations
-        all_recommendations = [
-            RecommendationResponse(
-                id=str(uuid.uuid4()),
-                title=f"Recommendation {i}",
-                description=f"Description for recommendation {i}",
-                content_id=str(uuid.uuid4()),
-                score=0.9 - (i * 0.1),
-                category="test",
-                created_at=datetime.now(),
-                metadata={
-                    "tags": ["ai", "technology"],
-                    "readTime": f"{5 + i} min"
-                }
+        engine = RecommendationEngine(db)
+        
+        if method == "collaborative":
+            recommendations = await engine.get_collaborative_recommendations(
+                user_id=user_id,
+                limit=limit
             )
-            for i in range(20)
-        ]
-
-        # Apply filters
-        filtered_recommendations = all_recommendations
-        if category:
-            filtered_recommendations = [r for r in filtered_recommendations if r.category == category]
-        if min_score is not None:
-            filtered_recommendations = [r for r in filtered_recommendations if r.score >= min_score]
-
-        # Apply pagination
-        total = len(filtered_recommendations)
-        start_idx = (page - 1) * limit
-        end_idx = start_idx + limit
-        paginated_recommendations = filtered_recommendations[start_idx:end_idx]
-
-        return {
-            "items": paginated_recommendations,
-            "total": total,
-            "page": page,
-            "totalPages": (total + limit - 1) // limit
-        }
-
+        elif method == "content-based":
+            recommendations = await engine.get_content_based_recommendations(
+                user_id=user_id,
+                content_type=content_type,
+                limit=limit
+            )
+        elif method == "hybrid":
+            # Get both types of recommendations
+            collaborative_recs = await engine.get_collaborative_recommendations(
+                user_id=user_id,
+                limit=limit
+            )
+            content_based_recs = await engine.get_content_based_recommendations(
+                user_id=user_id,
+                content_type=content_type,
+                limit=limit
+            )
+            
+            # Combine and sort by score
+            seen_content_ids = set()
+            recommendations = []
+            
+            # Merge recommendations with weights
+            for rec in collaborative_recs:
+                if rec["content_id"] not in seen_content_ids:
+                    rec["score"] *= 0.6  # Weight for collaborative filtering
+                    recommendations.append(rec)
+                    seen_content_ids.add(rec["content_id"])
+            
+            for rec in content_based_recs:
+                if rec["content_id"] not in seen_content_ids:
+                    rec["score"] *= 0.4  # Weight for content-based filtering
+                    recommendations.append(rec)
+                    seen_content_ids.add(rec["content_id"])
+            
+            # Sort by score and limit results
+            recommendations.sort(key=lambda x: x["score"], reverse=True)
+            recommendations = recommendations[:limit]
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid method. Use 'collaborative', 'content-based', or 'hybrid'"
+            )
+        
+        return recommendations
+    
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get recommendations: {str(e)}"
-        )
-
-@router.get("/{recommendation_id}", response_model=RecommendationResponse)
-async def get_recommendation(
-    recommendation_id: str,
-    current_user: User = Depends(get_current_user)
-):
-    """Get a specific recommendation by ID."""
-    try:
-        # In a real application, you would fetch this from your database
-        recommendation = RecommendationResponse(
-            id=recommendation_id,
-            title="Sample Recommendation",
-            description="Detailed description",
-            content_id=str(uuid.uuid4()),
-            score=0.95,
-            category="test",
-            created_at=datetime.now()
-        )
-        return recommendation
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Recommendation not found: {str(e)}"
-        ) 
+        raise HTTPException(status_code=500, detail=str(e)) 
