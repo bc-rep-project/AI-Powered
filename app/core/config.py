@@ -109,6 +109,13 @@ class Settings(BaseSettings):
     )
     ALGORITHM: str = "HS256"
     
+    # Wikipedia Configuration
+    WIKI_CACHE_TTL: int = Field(
+        3600,
+        env="WIKI_CACHE_TTL",
+        description="Wikipedia cache time-to-live in seconds"
+    )
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

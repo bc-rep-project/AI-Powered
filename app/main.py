@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import auth, health, recommendations
+from .routes import auth, health, recommendations, external
 from .core.config import settings
 from .db.mongodb import mongodb
 import logging
@@ -16,12 +16,24 @@ app = FastAPI(
 @app.middleware("http")
 async def global_error_handler(request: Request, call_next):
     try:
-        return await call_next(request)
+        response = await call_next(request)
+        if response.status_code >= 400:
+            return JSONResponse(
+                content={
+                    "detail": response.body.decode('utf-8') if response.body else "Unknown error",
+                    "status_code": response.status_code
+                },
+                status_code=response.status_code
+            )
+        return response
     except Exception as e:
         logger.error(f"Unhandled error: {str(e)}")
         return JSONResponse(
             status_code=500,
-            content={"message": "Internal server error"}
+            content={
+                "detail": "Internal server error",
+                "status_code": 500
+            }
         )
 
 # CORS middleware configuration
@@ -59,4 +71,5 @@ async def root():
 # Include routers
 app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["auth"])
 app.include_router(health.router, prefix=f"{settings.API_V1_STR}/health", tags=["health"])
-app.include_router(recommendations.router, prefix=settings.API_V1_STR, tags=["recommendations"]) 
+app.include_router(recommendations.router, prefix=settings.API_V1_STR, tags=["recommendations"])
+app.include_router(external.router, prefix=settings.API_V1_STR, tags=["external"])

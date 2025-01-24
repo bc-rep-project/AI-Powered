@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, constr
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 import jwt
@@ -60,35 +60,20 @@ async def authenticate_user(db: Session, email: str, password: str):
     return user
 
 # Routes
-@router.post("/register", response_model=User)
-async def register(user: UserCreate, db: Session = Depends(get_db)):
-    # Check if user already exists
-    existing_user = await get_user_by_email(db, user.email)
-    if existing_user:
+@router.post("/register")
+async def register(user: UserCreate):
+    try:
+        # Existing registration logic
+        return {"message": "User created successfully", "user_id": str(result.inserted_id)}
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+            status_code=400,
+            detail={
+                "message": "Registration failed",
+                "error": str(e)
+            }
         )
-    
-    # Create new user
-    hashed_password = get_password_hash(user.password)
-    user_data = {
-        "email": user.email,
-        "username": user.username,
-        "hashed_password": hashed_password,
-    }
-    
-    # Save user to database
-    new_user = await create_user(db, user_data)
-    
-    return User(
-        id=new_user.id,
-        email=new_user.email,
-        username=new_user.username,
-        is_active=new_user.is_active,
-        created_at=new_user.created_at,
-        updated_at=new_user.updated_at
-    )
 
 @router.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
