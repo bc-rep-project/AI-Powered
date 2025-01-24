@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import auth, health
+from .routes import auth, health, recommendations
 from .core.config import settings
 import logging
 
@@ -49,4 +49,5 @@ async def root():
 
 # Include routers
 app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["auth"])
-app.include_router(health.router, prefix=f"{settings.API_V1_STR}/health", tags=["health"]) 
+app.include_router(health.router, prefix=f"{settings.API_V1_STR}/health", tags=["health"])
+app.include_router(recommendations.router, prefix=settings.API_V1_STR, tags=["recommendations"]) 

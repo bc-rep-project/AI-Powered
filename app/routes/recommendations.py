@@ -17,6 +17,10 @@ async def get_user_embedding(user_id: str):
     return np.array(user_data["embedding"])
 
 @router.get("/")
+async def get_recommendations():
+    return {"message": "Recommendations endpoint working!"}
+
+@router.get("/")
 async def get_recommendations(
     user: dict = Depends(get_current_user),
     limit: int = 10
