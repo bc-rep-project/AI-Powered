@@ -5,34 +5,28 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.9
-      # Database
-      - key: DB_USER
-        sync: false
-      - key: DB_PASSWORD
-        sync: false
-      - key: DB_HOST
-        sync: false
-      - key: DB_PORT
-        value: "5432"
-      - key: DB_NAME
-        sync: false
-      # MongoDB
-      - key: MONGODB_URI
-        sync: false
-      - key: MONGODB_DB_NAME
-        value: "recommendation_engine"
-      # Auth
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: ai-recommendation-db
+          property: host
+      - key: POSTGRES_DATABASE
+        fromDatabase:
+          name: ai-recommendation-db
+          property: database
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: ai-recommendation-db
+          property: password
       - key: SECRET_KEY
         generateValue: true
-      - key: JWT_ALGORITHM
-        value: "HS256"
-      - key: ACCESS_TOKEN_EXPIRE_MINUTES
-        value: "30"
-      # API
-      - key: API_V1_STR
-        value: "/api/v1"
-      # CORS
-      - key: FRONTEND_URL
-        value: "https://ai-content-recommendation.vercel.app"
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: MODEL_SERVICE_URL
+        value: https://your-model-service.onrender.com
+
+databases:
+  - name: ai-recommendation-db
+    databaseName: ai_recommendation
+    user: ai_recommendation

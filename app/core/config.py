@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from pydantic import Field, PostgresDsn
+from pydantic import Field, PostgresDsn, HttpUrl, validator
 from typing import Optional
 import secrets
 
@@ -25,27 +25,36 @@ class Settings(BaseSettings):
     MODEL_SAVE_PATH: str = "models"
     
     # Database Configuration
-    DATABASE_URL: PostgresDsn
-    DB_HOST: str
-    DB_NAME: str
-    DB_PASSWORD: str
-    DB_PORT: str
-    DB_USER: str
+    DATABASE_URL: Optional[PostgresDsn] = None
+    DB_HOST: str = "localhost"
+    DB_NAME: str = "ai_recommendation"
+    DB_PASSWORD: str = ""
+    DB_PORT: str = "5432"
+    DB_USER: str = "postgres"
+    
+    @validator("DATABASE_URL", pre=True)
+    def assemble_db_url(cls, v: Optional[str], values: dict) -> str:
+        if v:
+            return v
+        return PostgresDsn.build(
+            scheme="postgresql",
+            username=values.get("DB_USER"),
+            password=values.get("DB_PASSWORD"),
+            host=values.get("DB_HOST"),
+            port=values.get("DB_PORT"),
+            path=f"/{values.get('DB_NAME')}"
+        )
     
     # MongoDB Configuration
-    MONGODB_URI: str = Field(..., env="MONGODB_URI")
+    MONGODB_URI: Optional[str] = None
     MONGODB_DB_NAME: str = "ai_recommendation"
     
-    # Redis Configuration (all optional with defaults)
-    REDIS_HOST: Optional[str] = None
-    REDIS_PORT: Optional[int] = 6379
-    REDIS_DB: Optional[int] = 0
-    REDIS_PASSWORD: Optional[str] = None
+    # Redis Configuration
     REDIS_URL: str = Field("redis://localhost:6379", env="REDIS_URL")
     
     # API Configuration
-    API_V1_STR: str = "/api/v1"  # Default value for API prefix
-    FRONTEND_URL: str = "http://localhost:3000"  # Default frontend URL
+    API_V1_STR: str = "/api/v1"
+    FRONTEND_URL: str = "http://localhost:3000"
     
     # OAuth Configuration
     GOOGLE_CLIENT_ID: Optional[str] = None
@@ -57,12 +66,20 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     METRICS_PORT: int = 9090
     
-    # Add these missing JWT settings
-    SECRET_KEY: str = Field(..., min_length=32, env="SECRET_KEY")
-    ALGORITHM: str = "HS256"
-    
     # Model Service
-    MODEL_SERVICE_URL: str = Field(..., env="MODEL_SERVICE_URL")
+    MODEL_SERVICE_URL: Optional[HttpUrl] = Field(
+        "http://localhost:8500",
+        env="MODEL_SERVICE_URL",
+        description="URL for the TensorFlow Serving model service"
+    )
+    
+    # Security
+    SECRET_KEY: str = Field(
+        default_factory=lambda: secrets.token_urlsafe(32),
+        min_length=32,
+        env="SECRET_KEY"
+    )
+    ALGORITHM: str = "HS256"
     
     class Config:
         env_file = ".env"
