@@ -67,14 +67,18 @@ class Settings(BaseSettings):
     REDIS_URL: str = Field(
         "redis://localhost:6379/0",
         env="REDIS_URL",
-        description="Full Redis connection URL including database number"
+        description="Redis connection URL (redis://user:password@host:port/db)"
     )
     
-    @validator("REDIS_URL")
-    def validate_redis_url(cls, v):
-        if not v.startswith("redis://"):
-            raise ValueError("Redis URL must start with redis://")
-        return v
+    @validator("REDIS_URL", pre=True)
+    def assemble_redis_connection(cls, v: Optional[str], values: dict) -> str:
+        if isinstance(v, str):
+            return v
+        return "redis://{host}:{port}/{db}".format(
+            host=values.get("REDIS_HOST", "localhost"),
+            port=values.get("REDIS_PORT", "6379"),
+            db=values.get("REDIS_DB", "0")
+        )
     
     # API Configuration
     API_V1_STR: str = "/api/v1"

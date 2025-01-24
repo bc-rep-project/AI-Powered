@@ -44,8 +44,7 @@ app.add_middleware(
     allow_origins=[
         settings.FRONTEND_URL,
         "http://localhost:3000",
-        "https://ai-powered-content-recommendation-frontend.vercel.app",
-        "https://ai-recommendation-api.onrender.com"
+        "https://ai-powered-content-recommendation-frontend.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],

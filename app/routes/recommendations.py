@@ -50,7 +50,7 @@ async def get_user_embedding(user_id: str):
             detail="Failed to get user embedding"
         )
 
-@router.get("/")
+@router.get("/", dependencies=[Depends(get_current_user)])
 async def get_recommendations(
     user: dict = Depends(get_current_user),
     limit: int = 10

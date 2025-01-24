@@ -60,11 +60,17 @@ async def authenticate_user(db: Session, email: str, password: str):
     return user
 
 # Routes
-@router.post("/register")
-async def register(user: UserCreate):
+@router.post("/register", status_code=status.HTTP_201_CREATED)
+async def register(user: UserCreate, db: Session = Depends(get_db)):
     try:
         # Existing registration logic
-        return {"message": "User created successfully", "user_id": str(result.inserted_id)}
+        new_user = await create_user(db, user.dict())
+        return {
+            "message": "User created successfully",
+            "user_id": str(new_user.id),
+            "access_token": create_access_token({"sub": user.email}),
+            "token_type": "bearer"
+        }
     except Exception as e:
         logger.error(f"Registration error: {str(e)}")
         raise HTTPException(
