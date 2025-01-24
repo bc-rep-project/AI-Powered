@@ -1,15 +1,27 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from app.core.auth import get_current_user
 from app.models.user import User
+from app.core.config import settings
 import tensorflow as tf
 import numpy as np
 import logging
+from redis import asyncio as aioredis
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 logger = logging.getLogger(__name__)
 
+# Initialize Redis client
+redis_client = aioredis.from_url(
+    settings.REDIS_URL,
+    decode_responses=True
+)
+
 # Load trained model
-model = tf.keras.models.load_model(settings.MODEL_SAVE_PATH)
+try:
+    model = tf.keras.models.load_model(settings.MODEL_SAVE_PATH)
+except Exception as e:
+    logger.warning(f"Could not load model: {str(e)}")
+    model = None
 
 async def get_user_embedding(user_id: str):
     # Get user features from MongoDB
@@ -17,15 +29,19 @@ async def get_user_embedding(user_id: str):
     return np.array(user_data["embedding"])
 
 @router.get("/")
-async def get_recommendations():
-    return {"message": "Recommendations endpoint working!"}
-
-@router.get("/")
 async def get_recommendations(
     user: dict = Depends(get_current_user),
     limit: int = 10
 ):
     try:
+        if model is None:
+            # Return fallback recommendations if model isn't loaded
+            return {
+                "user_id": user["id"],
+                "recommendations": [],
+                "message": "Model not available, using fallback recommendations"
+            }
+
         # Get user embedding
         user_embedding = await get_user_embedding(user["id"])
         
