@@ -46,8 +46,22 @@ class Settings(BaseSettings):
         return v
     
     # MongoDB Configuration
-    MONGODB_URI: Optional[str] = None
-    MONGODB_DB_NAME: str = "ai_recommendation"
+    MONGODB_URI: str = Field(
+        "mongodb://localhost:27017",
+        env="MONGODB_URI",
+        description="MongoDB connection string"
+    )
+    MONGODB_DB_NAME: str = Field(
+        "ai_recommendation",
+        env="MONGODB_DB_NAME",
+        description="MongoDB database name"
+    )
+    
+    @validator("MONGODB_URI")
+    def validate_mongodb_uri(cls, v):
+        if not v.startswith("mongodb://") and not v.startswith("mongodb+srv://"):
+            raise ValueError("MongoDB URI must start with mongodb:// or mongodb+srv://")
+        return v
     
     # Redis Configuration
     REDIS_URL: str = Field(

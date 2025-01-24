@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import auth, health, recommendations
 from .core.config import settings
+from .db.mongodb import mongodb
 import logging
 
 logger = logging.getLogger(__name__)
@@ -38,9 +39,14 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting up application...")
-    # Log configuration (excluding sensitive data)
+    await mongodb.connect()
     logger.info(f"API Version: {settings.API_V1_STR}")
     logger.info(f"Environment: {'development' if 'localhost' in settings.FRONTEND_URL else 'production'}")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("Shutting down application...")
+    await mongodb.close()
 
 # Root endpoint for health check
 @app.get("/")

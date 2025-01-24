@@ -12,7 +12,9 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: MONGODB_URI
-        sync: false
+        value: ${MONGODB_URI}  # Set this in Render dashboard
+      - key: MONGODB_DB_NAME
+        value: ai_recommendation
       - key: REDIS_URL
         sync: false
       - key: MODEL_SERVICE_URL
