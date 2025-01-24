@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings
 from pydantic import Field, PostgresDsn, HttpUrl, validator, AnyUrl
-from typing import Optional, Union
+from typing import Optional, Union, Any
 import secrets
 
 class Settings(BaseSettings):
