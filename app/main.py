@@ -17,14 +17,16 @@ app = FastAPI(
 async def global_error_handler(request: Request, call_next):
     try:
         response = await call_next(request)
-        if response.status_code >= 400:
-            return JSONResponse(
-                content={
-                    "detail": response.body.decode('utf-8') if response.body else "Unknown error",
-                    "status_code": response.status_code
-                },
-                status_code=response.status_code
-            )
+        # Handle streaming responses differently
+        if hasattr(response, 'body'):
+            if response.status_code >= 400:
+                return JSONResponse(
+                    content={
+                        "detail": response.body.decode('utf-8') if response.body else "Unknown error",
+                        "status_code": response.status_code
+                    },
+                    status_code=response.status_code
+                )
         return response
     except Exception as e:
         logger.error(f"Unhandled error: {str(e)}")

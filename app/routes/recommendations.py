@@ -7,6 +7,7 @@ import tensorflow as tf
 import numpy as np
 import logging
 from redis import asyncio as aioredis
+from tensorflow.keras.layers import TFSMLayer
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 logger = logging.getLogger(__name__)
@@ -22,7 +23,12 @@ mongodb = get_mongodb()
 
 # Load trained model
 try:
-    model = tf.keras.models.load_model(settings.MODEL_SAVE_PATH)
+    # Load model as inference-only layer
+    model = TFSMLayer(
+        settings.MODEL_SAVE_PATH,
+        call_endpoint='serving_default'
+    )
+    logger.info("Loaded TensorFlow SavedModel as TFSMLayer")
 except Exception as e:
     logger.warning(f"Could not load model: {str(e)}")
     model = None
