@@ -50,7 +50,17 @@ class Settings(BaseSettings):
     MONGODB_DB_NAME: str = "ai_recommendation"
     
     # Redis Configuration
-    REDIS_URL: str = Field("redis://localhost:6379", env="REDIS_URL")
+    REDIS_URL: str = Field(
+        "redis://localhost:6379/0",
+        env="REDIS_URL",
+        description="Full Redis connection URL including database number"
+    )
+    
+    @validator("REDIS_URL")
+    def validate_redis_url(cls, v):
+        if not v.startswith("redis://"):
+            raise ValueError("Redis URL must start with redis://")
+        return v
     
     # API Configuration
     API_V1_STR: str = "/api/v1"

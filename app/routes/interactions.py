@@ -3,9 +3,17 @@ from app.models.interaction import InteractionCreate
 from app.core.auth import get_current_user
 from datetime import datetime
 import logging
+from redis import asyncio as aioredis
+from app.core.config import settings
 
 router = APIRouter(prefix="/interactions", tags=["interactions"])
 logger = logging.getLogger(__name__)
+
+# Replace existing Redis connection code with:
+redis_client = aioredis.from_url(
+    settings.REDIS_URL,
+    decode_responses=True
+)
 
 @router.post("/")
 async def track_interaction(
