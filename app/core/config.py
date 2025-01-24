@@ -78,7 +78,11 @@ class Settings(BaseSettings):
     
     # API Configuration
     API_V1_STR: str = "/api/v1"
-    FRONTEND_URL: str = "http://localhost:3000"
+    FRONTEND_URL: str = Field(
+        "https://ai-powered-content-recommendation-frontend.vercel.app",
+        env="FRONTEND_URL",
+        description="Frontend application URL"
+    )
     
     # OAuth Configuration
     GOOGLE_CLIENT_ID: Optional[str] = None

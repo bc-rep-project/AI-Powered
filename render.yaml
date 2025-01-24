@@ -19,6 +19,8 @@ services:
         sync: false
       - key: MODEL_SERVICE_URL
         value: https://your-model-service.onrender.com
+      - key: FRONTEND_URL
+        value: https://ai-powered-content-recommendation-frontend.vercel.app
 
 databases:
   - name: ai-recommendation-db

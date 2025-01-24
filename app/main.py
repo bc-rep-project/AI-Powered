@@ -24,16 +24,18 @@ async def global_error_handler(request: Request, call_next):
             content={"message": "Internal server error"}
         )
 
-# CORS middleware
+# CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         settings.FRONTEND_URL,
         "http://localhost:3000",
+        "https://ai-powered-content-recommendation-frontend.vercel.app"  # Add your Vercel domain
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 @app.on_event("startup")
