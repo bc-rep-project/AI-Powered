@@ -88,13 +88,6 @@ class Settings(BaseSettings):
         description="Frontend application URL"
     )
     
-    # Add Render URL to allowed origins
-    CORS_ORIGINS: list = [
-        FRONTEND_URL,
-        "http://localhost:3000",
-        "https://ai-recommendation-api.onrender.com"
-    ]
-    
     # OAuth Configuration
     GOOGLE_CLIENT_ID: Optional[str] = None
     GOOGLE_CLIENT_SECRET: Optional[str] = None
@@ -126,19 +119,6 @@ class Settings(BaseSettings):
         env="WIKI_CACHE_TTL",
         description="Wikipedia cache time-to-live in seconds"
     )
-    
-    # Render-specific settings
-    RENDER: bool = Field(
-        False,
-        env="RENDER",
-        description="Flag indicating if running on Render.com"
-    )
-    
-    @validator("PORT", pre=True)
-    def validate_port(cls, v, values):
-        if values.get("RENDER"):
-            return 10000  # Render's default port
-        return v
     
     class Config:
         env_file = ".env"

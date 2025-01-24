@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from fastapi.param_functions import Query
+from fastapi.middleware.cors import CORSMiddleware
 import requests
 from app.core.config import settings
 from redis import asyncio as aioredis
@@ -17,8 +18,13 @@ WIKI_API_URL = "https://en.wikipedia.org/w/api.php"
 @router.get("/wikipedia")
 async def get_wikipedia_content(
     search: str = Query(..., min_length=3),
-    limit: int = 5
+    limit: int = 5,
+    response: Response = None
 ):
+    # Add CORS headers
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    
     cache_key = f"wiki:{search}"
     try:
         # Check cache first
