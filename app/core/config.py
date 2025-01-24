@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings
-from pydantic import Field, PostgresDsn, HttpUrl, validator
-from typing import Optional
+from pydantic import Field, PostgresDsn, HttpUrl, validator, AnyUrl
+from typing import Optional, Union
 import secrets
 
 class Settings(BaseSettings):
@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     MODEL_SAVE_PATH: str = "models"
     
     # Database Configuration
-    DATABASE_URL: Optional[PostgresDsn] = None
+    DATABASE_URL: Optional[Union[PostgresDsn, str]] = None
     DB_HOST: str = "localhost"
     DB_NAME: str = "ai_recommendation"
     DB_PASSWORD: str = ""
@@ -33,17 +33,17 @@ class Settings(BaseSettings):
     DB_USER: str = "postgres"
     
     @validator("DATABASE_URL", pre=True)
-    def assemble_db_url(cls, v: Optional[str], values: dict) -> str:
-        if v:
+    def validate_database_url(cls, v: Optional[str], values: dict) -> Any:
+        if isinstance(v, str):
             return v
-        return PostgresDsn.build(
-            scheme="postgresql",
-            username=values.get("DB_USER"),
-            password=values.get("DB_PASSWORD"),
-            host=values.get("DB_HOST"),
-            port=values.get("DB_PORT"),
-            path=f"/{values.get('DB_NAME')}"
-        )
+        if v is None:
+            required_fields = ["DB_USER", "DB_PASSWORD", "DB_HOST", "DB_PORT", "DB_NAME"]
+            missing_fields = [field for field in required_fields if not values.get(field)]
+            if missing_fields:
+                return None
+                
+            return f"postgresql://{values.get('DB_USER')}:{values.get('DB_PASSWORD')}@{values.get('DB_HOST')}:{values.get('DB_PORT')}/{values.get('DB_NAME')}"
+        return v
     
     # MongoDB Configuration
     MONGODB_URI: Optional[str] = None
