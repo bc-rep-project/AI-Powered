@@ -7,6 +7,9 @@ from ..models.interaction import Interaction
 import tensorflow as tf
 import pandas as pd
 import logging
+import httpx
+from fastapi import status
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -188,4 +191,27 @@ class RecommendationEngine:
             # For now, we'll use a simple placeholder
             embedding = np.random.rand(128)  # 128-dimensional embedding
             self.content_embeddings[content.id] = embedding
-        return self.content_embeddings[content.id] 
+        return self.content_embeddings[content.id]
+
+async def get_recommendations(user_id: str):
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{settings.MODEL_SERVICE_URL}/recommend",
+                json={"user_id": user_id},
+                timeout=10
+            )
+            response.raise_for_status()
+            return response.json()["recommendations"]
+            
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Recommendation service error: {e.response.text}")
+        if e.response.status_code == status.HTTP_404_NOT_FOUND:
+            return get_fallback_recommendations()
+    except Exception as e:
+        logger.error(f"Recommendation service unavailable: {str(e)}")
+        return get_fallback_recommendations()
+
+def get_fallback_recommendations():
+    # Implement fallback logic using Redis/MongoDB cache
+    return [] 

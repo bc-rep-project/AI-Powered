@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import Field, PostgresDsn
 from typing import Optional
 import secrets
 
@@ -8,6 +9,7 @@ class Settings(BaseSettings):
     
     # Authentication
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     
     # Model Configuration
     ACTIVATION: str = "relu"  # Default activation function
@@ -23,7 +25,7 @@ class Settings(BaseSettings):
     MODEL_SAVE_PATH: str = "models"
     
     # Database Configuration
-    DATABASE_URL: Optional[str] = None
+    DATABASE_URL: PostgresDsn
     DB_HOST: str
     DB_NAME: str
     DB_PASSWORD: str
@@ -31,7 +33,7 @@ class Settings(BaseSettings):
     DB_USER: str
     
     # MongoDB Configuration
-    MONGODB_URI: Optional[str] = None
+    MONGODB_URI: str = Field(..., env="MONGODB_URI")
     MONGODB_DB_NAME: str = "ai_recommendation"
     
     # Redis Configuration (all optional with defaults)
@@ -39,6 +41,7 @@ class Settings(BaseSettings):
     REDIS_PORT: Optional[int] = 6379
     REDIS_DB: Optional[int] = 0
     REDIS_PASSWORD: Optional[str] = None
+    REDIS_URL: str = Field("redis://localhost:6379", env="REDIS_URL")
     
     # API Configuration
     API_V1_STR: str = "/api/v1"  # Default value for API prefix
@@ -53,6 +56,13 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     LOG_LEVEL: str = "INFO"
     METRICS_PORT: int = 9090
+    
+    # Add these missing JWT settings
+    SECRET_KEY: str = Field(..., min_length=32, env="SECRET_KEY")
+    ALGORITHM: str = "HS256"
+    
+    # Model Service
+    MODEL_SERVICE_URL: str = Field(..., env="MODEL_SERVICE_URL")
     
     class Config:
         env_file = ".env"

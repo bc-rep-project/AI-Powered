@@ -91,7 +91,7 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
     )
 
 @router.post("/token", response_model=Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = await authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
