@@ -119,7 +119,6 @@ async def logout(
     db: Session = Depends(get_db)
 ):
     try:
-        # Add token to blacklist
         token = await oauth2_scheme(None)
         if token:
             await redis_client.setex(

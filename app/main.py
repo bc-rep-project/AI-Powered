@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .routes import auth, health, recommendations, external
 from .core.config import settings
 from .db.mongodb import mongodb
+from .db.redis import redis_client
 import logging
 
 logger = logging.getLogger(__name__)
@@ -59,11 +60,14 @@ async def startup_event():
     await mongodb.connect()
     logger.info(f"API Version: {settings.API_V1_STR}")
     logger.info(f"Environment: {'development' if 'localhost' in settings.FRONTEND_URL else 'production'}")
+    await redis_client.ping()  # Test Redis connection
+    logger.info("Connected to Redis")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Shutting down application...")
     await mongodb.close()
+    await redis_client.close()
 
 # Root endpoint for health check
 @app.get("/")
