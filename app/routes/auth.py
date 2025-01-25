@@ -45,17 +45,21 @@ async def get_user_by_email(db: Session, email: str):
     return db.query(UserInDB).filter(UserInDB.email == email).first()
 
 async def create_user(db: Session, user_data: dict):
-    db_user = UserInDB(
-        id=str(uuid.uuid4()),
-        email=user_data["email"],
-        username=user_data["username"],
-        hashed_password=user_data["hashed_password"],
-        is_active=True
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
+    try:
+        db_user = UserInDB(
+            id=str(uuid.uuid4()),
+            email=user_data["email"],
+            username=user_data["username"],
+            hashed_password=user_data["hashed_password"],
+            is_active=True
+        )
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        return db_user
+    except Exception as e:
+        db.rollback()
+        raise e
 
 async def authenticate_user(db: Session, email: str, password: str):
     user = await get_user_by_email(db, email)
