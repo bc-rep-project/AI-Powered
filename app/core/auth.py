@@ -6,7 +6,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from app.models.user import TokenData, User
 from app.db.database import mongodb
-from app.core import settings
+from .config import settings
 from app.db.redis import redis_client
 
 # Security configuration
