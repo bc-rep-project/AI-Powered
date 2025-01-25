@@ -48,10 +48,9 @@ app.add_middleware(
         "https://ai-powered-content-recommendation-frontend.vercel.app"
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],  # Allow all methods
     allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=86400  # Cache preflight requests for 24 hours
+    expose_headers=["*"]
 )
 
 @app.on_event("startup")
