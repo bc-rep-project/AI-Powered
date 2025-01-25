@@ -129,7 +129,7 @@ async def login_for_access_token(
     
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.post("/logout", methods=["POST", "OPTIONS"])
+@router.post("/logout")
 async def logout(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
