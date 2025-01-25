@@ -62,9 +62,21 @@ async def authenticate_user(db: Session, email: str, password: str):
 # Routes
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(user: UserCreate, db: Session = Depends(get_db)):
+    # Add validation
+    if len(user.password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 8 characters"
+        )
+    
+    # Hash password before saving
+    hashed_password = get_password_hash(user.password)
+    user_data = user.dict()
+    user_data["hashed_password"] = hashed_password
+    del user_data["password"]
+    
     try:
-        # Existing registration logic
-        new_user = await create_user(db, user.dict())
+        new_user = await create_user(db, user_data)
         return {
             "message": "User created successfully",
             "user_id": str(new_user.id),
@@ -75,10 +87,7 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
         logger.error(f"Registration error: {str(e)}")
         raise HTTPException(
             status_code=400,
-            detail={
-                "message": "Registration failed",
-                "error": str(e)
-            }
+            detail="Registration failed - user may already exist"
         )
 
 @router.post("/token", response_model=Token)

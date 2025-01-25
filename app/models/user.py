@@ -26,9 +26,9 @@ class UserBase(BaseModel):
     oauth_provider: Optional[str] = None
 
 class UserCreate(BaseModel):
-    username: str
     email: EmailStr
     password: str
+    username: str
 
 class User(UserBase):
     id: str
