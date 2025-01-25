@@ -8,6 +8,7 @@ from app.models.user import TokenData, User
 from app.db.database import mongodb
 from .config import settings
 from ..db.redis import redis_client
+from .user import get_user_by_email
 
 # Security configuration
 SECRET_KEY = "your-secret-key-here"  # In production, use environment variable
@@ -49,9 +50,12 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         if email is None:
             raise credentials_exception
         
-        # Check if token is blacklisted
+        # Check token blacklist
         if await redis_client.exists(f"blacklist:{token}"):
-            raise HTTPException(status_code=401, detail="Token revoked")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked"
+            )
         
         user = await get_user_by_email(email)
         if user is None:

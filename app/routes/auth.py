@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from ..core.config import settings
 from ..database import get_db
 from ..models.user import UserInDB, UserCreate, User, Token, TokenData
-from ..core.auth import get_current_user
+from ..core.auth import get_current_user, get_user_by_email
 import logging
 from ..db.redis import redis_client
 
@@ -142,17 +142,21 @@ async def logout(
     db: Session = Depends(get_db)
 ):
     try:
+        # Get the current token from the request
         token = await oauth2_scheme(None)
+        
         if token:
+            # Add token to blacklist
             await redis_client.setex(
                 f"blacklist:{token}",
                 settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
                 "true"
             )
+        
         return {"message": "Successfully logged out"}
     except Exception as e:
         logger.error(f"Logout error: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail="Logout failed"
+            detail="Logout failed. Please try again."
         )
