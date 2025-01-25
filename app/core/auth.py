@@ -7,7 +7,7 @@ from fastapi.security import OAuth2PasswordBearer
 from app.models.user import TokenData, User
 from app.db.database import mongodb
 from .config import settings
-from app.db.redis import redis_client
+from ..db.redis import redis_client
 
 # Security configuration
 SECRET_KEY = "your-secret-key-here"  # In production, use environment variable

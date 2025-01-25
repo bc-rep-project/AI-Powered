@@ -67,6 +67,22 @@ async def authenticate_user(db: Session, email: str, password: str):
 # Routes
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(user: UserCreate, db: Session = Depends(get_db)):
+    # Check if email already exists
+    existing_email = await get_user_by_email(db, user.email)
+    if existing_email:
+        raise HTTPException(
+            status_code=400,
+            detail="Email already registered"
+        )
+    
+    # Check if username already exists
+    existing_username = db.query(UserInDB).filter(UserInDB.username == user.username).first()
+    if existing_username:
+        raise HTTPException(
+            status_code=400,
+            detail="Username already taken"
+        )
+
     # Add validation
     if len(user.password) < 8:
         raise HTTPException(
@@ -95,9 +111,16 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
             detail="Registration failed - user may already exist"
         )
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
 @router.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = await authenticate_user(db, form_data.username, form_data.password)
+async def login_for_access_token(
+    login_data: LoginRequest,  # Changed from OAuth2 form
+    db: Session = Depends(get_db)
+):
+    user = await authenticate_user(db, login_data.username, login_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
