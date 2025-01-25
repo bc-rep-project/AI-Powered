@@ -71,7 +71,7 @@ async def root():
     return {"status": "healthy", "message": "AI Content Recommendation API"}
 
 # Include routers
-app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["auth"])
+app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(health.router, prefix=f"{settings.API_V1_STR}/health", tags=["health"])
 app.include_router(recommendations.router, prefix=settings.API_V1_STR, tags=["recommendations"])
 app.include_router(external.router, prefix=settings.API_V1_STR, tags=["external"])

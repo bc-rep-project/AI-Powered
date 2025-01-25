@@ -11,7 +11,7 @@ from ..core.config import settings
 from ..database import get_db
 from ..models.user import UserInDB, UserCreate, User, Token, TokenData
 
-router = APIRouter()
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
