@@ -6,6 +6,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from app.models.user import TokenData, User
 from app.db.database import mongodb
+from app.core import settings
+from app.db.redis import redis_client
 
 # Security configuration
 SECRET_KEY = "your-secret-key-here"  # In production, use environment variable
@@ -34,7 +36,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
+async def get_current_user(token: str = Depends(oauth2_scheme)):
     """Get current user from JWT token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -42,18 +44,21 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         email: str = payload.get("sub")
         if email is None:
             raise credentials_exception
-        token_data = TokenData(email=email)
+        
+        # Check if token is blacklisted
+        if await redis_client.exists(f"blacklist:{token}"):
+            raise HTTPException(status_code=401, detail="Token revoked")
+        
+        user = await get_user_by_email(email)
+        if user is None:
+            raise credentials_exception
+        return user
     except JWTError:
         raise credentials_exception
-        
-    user = await mongodb.users.find_one({"email": token_data.email})
-    if user is None:
-        raise credentials_exception
-    return User(**user)
 
 async def authenticate_user(email: str, password: str) -> Optional[User]:
     """Authenticate user with email and password."""
