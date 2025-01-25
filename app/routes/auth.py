@@ -13,6 +13,7 @@ from ..models.user import UserInDB, UserCreate, User, Token, TokenData
 from ..core.auth import get_current_user
 import logging
 from ..db.redis import redis_client
+from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 
@@ -41,20 +42,19 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 # Database operations
 async def get_user_by_email(db: Session, email: str):
-    return db.query(UserInDB).filter(UserInDB.email == email).first()
+    result = await db.execute(select(UserInDB).filter(UserInDB.email == email))
+    return result.scalars().first()
 
 async def create_user(db: Session, user_data: dict):
-    db_user = UserInDB(
-        id=str(uuid.uuid4()),
-        email=user_data["email"],
-        username=user_data["username"],
-        hashed_password=user_data["hashed_password"],
-        is_active=True
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
+    try:
+        db_user = UserInDB(**user_data)
+        db.add(db_user)
+        await db.commit()
+        await db.refresh(db_user)
+        return db_user
+    except Exception as e:
+        await db.rollback()
+        raise e
 
 async def authenticate_user(db: Session, email: str, password: str):
     user = await get_user_by_email(db, email)
@@ -67,7 +67,7 @@ async def authenticate_user(db: Session, email: str, password: str):
 # Routes
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(user: UserCreate, db: Session = Depends(get_db)):
-    # Check if email already exists
+    # Check if email exists
     existing_email = await get_user_by_email(db, user.email)
     if existing_email:
         raise HTTPException(
@@ -75,14 +75,15 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
             detail="Email already registered"
         )
     
-    # Check if username already exists
-    existing_username = db.query(UserInDB).filter(UserInDB.username == user.username).first()
+    # Check if username exists
+    result = await db.execute(select(UserInDB).filter(UserInDB.username == user.username))
+    existing_username = result.scalars().first()
     if existing_username:
         raise HTTPException(
             status_code=400,
             detail="Username already taken"
         )
-
+    
     # Add validation
     if len(user.password) < 8:
         raise HTTPException(
@@ -117,7 +118,7 @@ class LoginRequest(BaseModel):
 
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
-    login_data: LoginRequest,  # Changed from OAuth2 form
+    login_data: LoginRequest,
     db: Session = Depends(get_db)
 ):
     user = await authenticate_user(db, login_data.username, login_data.password)
