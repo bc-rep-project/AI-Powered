@@ -131,21 +131,16 @@ async def login_for_access_token(
 
 @router.post("/logout")
 async def logout(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user)
 ):
     try:
-        # Get the current token from the request
         token = await oauth2_scheme(None)
-        
         if token:
-            # Add token to blacklist
             await redis_client.setex(
                 f"blacklist:{token}",
                 settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
                 "true"
             )
-        
         return {"message": "Successfully logged out"}
     except Exception as e:
         logger.error(f"Logout error: {str(e)}")
