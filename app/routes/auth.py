@@ -10,6 +10,11 @@ from sqlalchemy.orm import Session
 from ..core.config import settings
 from ..database import get_db
 from ..models.user import UserInDB, UserCreate, User, Token, TokenData
+from ..core.auth import get_current_user
+import logging
+from ..db.redis import redis_client
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -110,8 +115,22 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
 @router.post("/logout")
 async def logout(
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Invalidate token logic if needed
-    return {"message": "Successfully logged out"}
+    try:
+        # Add token to blacklist
+        token = await oauth2_scheme(None)
+        if token:
+            await redis_client.setex(
+                f"blacklist:{token}",
+                settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                "true"
+            )
+        return {"message": "Successfully logged out"}
+    except Exception as e:
+        logger.error(f"Logout error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Logout failed"
+        )
