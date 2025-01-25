@@ -11,6 +11,7 @@ from ..core.config import settings
 from ..database import get_db
 from ..models.user import UserInDB, UserCreate, User, Token, TokenData
 from ..core.auth import get_current_user, get_user_by_email
+from ..core.user import get_user_by_email, get_user_by_username
 import logging
 from ..db.redis import redis_client
 
@@ -67,22 +68,14 @@ async def authenticate_user(db: Session, email: str, password: str):
 # Routes
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(user: UserCreate, db: Session = Depends(get_db)):
-    # Check if email already exists
-    existing_email = await get_user_by_email(db, user.email)
-    if existing_email:
-        raise HTTPException(
-            status_code=400,
-            detail="Email already registered"
-        )
+    # Check email exists
+    if await get_user_by_email(db, user.email):
+        raise HTTPException(status_code=400, detail="Email already registered")
     
-    # Check if username already exists
-    existing_username = db.query(UserInDB).filter(UserInDB.username == user.username).first()
-    if existing_username:
-        raise HTTPException(
-            status_code=400,
-            detail="Username already taken"
-        )
-
+    # Check username exists
+    if await get_user_by_username(db, user.username):
+        raise HTTPException(status_code=400, detail="Username already taken")
+    
     # Add validation
     if len(user.password) < 8:
         raise HTTPException(

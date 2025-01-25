@@ -8,7 +8,7 @@ from app.models.user import TokenData, User
 from app.db.database import mongodb
 from .config import settings
 from ..db.redis import redis_client
-from .user import get_user_by_email
+from .user import get_user_by_email, get_user_by_username
 
 # Security configuration
 SECRET_KEY = "your-secret-key-here"  # In production, use environment variable
