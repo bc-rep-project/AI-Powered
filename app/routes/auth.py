@@ -14,6 +14,7 @@ from ..core.auth import get_current_user, get_user_by_email
 from ..core.user import get_user_by_email, get_user_by_username
 import logging
 from ..db.redis import redis_client
+import aioredis
 
 logger = logging.getLogger(__name__)
 
@@ -72,40 +73,49 @@ async def authenticate_user(db: Session, email: str, password: str):
 # Routes
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(user: UserCreate, db: Session = Depends(get_db)):
-    # Check email exists
-    if await get_user_by_email(db, user.email):
+    # Check if email or username already exists
+    existing_email = await get_user_by_email(db, user.email)
+    if existing_email:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # Check username exists
-    if await get_user_by_username(db, user.username):
+    existing_username = await get_user_by_username(db, user.username)
+    if existing_username:
         raise HTTPException(status_code=400, detail="Username already taken")
-    
-    # Add validation
+
+    # Validate password strength
     if len(user.password) < 8:
         raise HTTPException(
             status_code=400,
             detail="Password must be at least 8 characters"
         )
-    
-    # Hash password before saving
-    hashed_password = get_password_hash(user.password)
-    user_data = user.dict()
-    user_data["hashed_password"] = hashed_password
-    del user_data["password"]
-    
+
     try:
+        hashed_password = get_password_hash(user.password)
+        user_data = {
+            "email": user.email,
+            "username": user.username,
+            "hashed_password": hashed_password,
+            "is_active": True
+        }
+        
         new_user = await create_user(db, user_data)
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user.email},
+            expires_delta=access_token_expires
+        )
+        
         return {
             "message": "User created successfully",
-            "user_id": str(new_user.id),
-            "access_token": create_access_token({"sub": user.email}),
-            "token_type": "bearer"
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user_id": str(new_user.id)
         }
     except Exception as e:
         logger.error(f"Registration error: {str(e)}")
         raise HTTPException(
-            status_code=400,
-            detail="Registration failed - user may already exist"
+            status_code=500,
+            detail="Registration failed. Please try again later."
         )
 
 class LoginRequest(BaseModel):
@@ -135,16 +145,22 @@ async def login_for_access_token(
 
 @router.post("/logout")
 async def logout(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    redis: aioredis.Redis = Depends(get_redis)
 ):
     try:
+        # Get the current token
         token = await oauth2_scheme(None)
-        if token:
-            await redis_client.setex(
-                f"blacklist:{token}",
-                settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-                "true"
-            )
+        if not token:
+            raise HTTPException(status_code=400, detail="No token provided")
+        
+        # Add token to blacklist
+        await redis.setex(
+            f"blacklist:{token}",
+            settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Match token expiration
+            "true"
+        )
+        
         return {"message": "Successfully logged out"}
     except Exception as e:
         logger.error(f"Logout error: {str(e)}")

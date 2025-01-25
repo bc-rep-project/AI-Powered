@@ -30,6 +30,15 @@ class UserCreate(BaseModel):
     password: str
     username: str
 
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "email": "user@example.com",
+                "password": "securepassword123",
+                "username": "johndoe"
+            }
+        }
+
 class User(UserBase):
     id: str
     is_active: bool = True
