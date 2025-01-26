@@ -10,6 +10,7 @@ from .config import settings
 from ..db.redis import redis_client
 from .user import get_user_by_email, get_user_by_username
 from ..database import get_db
+from sqlalchemy.orm import Session
 
 # Security configuration
 SECRET_KEY = "your-secret-key-here"  # In production, use environment variable
