@@ -42,10 +42,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 # Database operations
-async def get_user_by_email(db: Session, email: str):
+def get_user_by_email(db: Session, email: str):
     return db.query(UserInDB).filter(UserInDB.email == email).first()
 
-async def create_user(db: Session, user_data: dict):
+def create_user(db: Session, user_data: dict):
     try:
         db_user = UserInDB(
             id=str(uuid.uuid4()),
@@ -62,8 +62,8 @@ async def create_user(db: Session, user_data: dict):
         db.rollback()
         raise e
 
-async def authenticate_user(db: Session, email: str, password: str):
-    user = await get_user_by_email(db, email)
+def authenticate_user(db: Session, email: str, password: str):
+    user = get_user_by_email(db, email)
     if not user:
         return False
     if not verify_password(password, user.hashed_password):
@@ -72,13 +72,13 @@ async def authenticate_user(db: Session, email: str, password: str):
 
 # Routes
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-async def register(user: UserCreate, db: Session = Depends(get_db)):
-    # Check if email or username already exists
-    existing_email = await get_user_by_email(db, user.email)
+def register(user: UserCreate, db: Session = Depends(get_db)):
+    # Check if email or username exists
+    existing_email = get_user_by_email(db, user.email)
     if existing_email:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    existing_username = await get_user_by_username(db, user.username)
+    existing_username = get_user_by_username(db, user.username)
     if existing_username:
         raise HTTPException(status_code=400, detail="Username already taken")
 
@@ -98,7 +98,7 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
             "is_active": True
         }
         
-        new_user = await create_user(db, user_data)
+        new_user = create_user(db, user_data)
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
             data={"sub": user.email},
@@ -123,11 +123,11 @@ class LoginRequest(BaseModel):
     password: str
 
 @router.post("/token", response_model=Token)
-async def login_for_access_token(
+def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    user = await authenticate_user(db, form_data.username, form_data.password)
+    user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
