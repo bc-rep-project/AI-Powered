@@ -9,6 +9,7 @@ from app.db.database import mongodb
 from .config import settings
 from ..db.redis import redis_client
 from .user import get_user_by_email, get_user_by_username
+from ..database import get_db
 
 # Security configuration
 SECRET_KEY = "your-secret-key-here"  # In production, use environment variable
@@ -37,8 +38,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    """Get current user from JWT token."""
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -50,14 +53,13 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         if email is None:
             raise credentials_exception
         
-        # Check token blacklist
         if await redis_client.exists(f"blacklist:{token}"):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has been revoked"
             )
         
-        user = await get_user_by_email(email)
+        user = await get_user_by_email(db, email)
         if user is None:
             raise credentials_exception
         return user
