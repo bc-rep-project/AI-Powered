@@ -15,6 +15,7 @@ from ..core.user import get_user_by_email, get_user_by_username
 import logging
 from ..db.redis import redis_client, get_redis
 from redis import asyncio as aioredis
+from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -76,23 +77,27 @@ def authenticate_user(db: Session, email: str, password: str):
 # Routes
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(user: UserCreate, db: Session = Depends(get_db)):
-    # Check if email or username exists
-    existing_email = get_user_by_email(db, user.email)
-    if existing_email:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    existing_username = get_user_by_username(db, user.username)
-    if existing_username:
-        raise HTTPException(status_code=400, detail="Username already taken")
-
-    # Validate password strength
-    if len(user.password) < 8:
-        raise HTTPException(
-            status_code=400,
-            detail="Password must be at least 8 characters"
-        )
-
     try:
+        # Normalize email and username
+        user.email = user.email.strip().lower()
+        user.username = user.username.strip()
+        
+        # Check if email or username exists
+        existing_email = get_user_by_email(db, user.email)
+        if existing_email:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        existing_username = get_user_by_username(db, user.username)
+        if existing_username:
+            raise HTTPException(status_code=400, detail="Username already taken")
+
+        # Validate password strength
+        if len(user.password) < 8:
+            raise HTTPException(
+                status_code=400,
+                detail="Password must be at least 8 characters"
+            )
+
         hashed_password = get_password_hash(user.password)
         user_data = {
             "email": user.email,
@@ -114,6 +119,11 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
             "token_type": "bearer",
             "user_id": str(new_user.id)
         }
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=422,
+            detail=e.errors()
+        )
     except Exception as e:
         logger.error(f"Registration error: {str(e)}")
         raise HTTPException(
