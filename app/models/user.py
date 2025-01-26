@@ -3,6 +3,7 @@ from sqlalchemy.sql import func
 from pydantic import BaseModel, EmailStr, constr
 from typing import Optional
 from datetime import datetime
+from pydantic import field_validator
 
 from ..db.database import Base
 
@@ -29,6 +30,18 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     username: str
+
+    @field_validator('email')
+    def email_to_lower(cls, v):
+        return v.lower()
+    
+    @field_validator('username')
+    def validate_username(cls, v):
+        if len(v) < 3:
+            raise ValueError('Username must be at least 3 characters')
+        if not v.isalnum():
+            raise ValueError('Username must be alphanumeric')
+        return v
 
     class Config:
         json_schema_extra = {

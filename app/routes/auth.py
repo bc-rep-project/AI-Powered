@@ -43,7 +43,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 # Database operations
 def get_user_by_email(db: Session, email: str):
-    return db.query(UserInDB).filter(UserInDB.email == email).first()
+    return db.query(UserInDB).filter(UserInDB.email.ilike(email)).first()
+
+def get_user_by_username(db: Session, username: str):
+    return db.query(UserInDB).filter(UserInDB.username.ilike(username)).first()
 
 def create_user(db: Session, user_data: dict):
     try:
