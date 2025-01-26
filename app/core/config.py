@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = Field(
         "redis://localhost:6379/0",
         env="REDIS_URL",
-        description="Full Redis connection URL"
+        description="Full Redis connection URL including credentials"
     )
     
     # API Configuration

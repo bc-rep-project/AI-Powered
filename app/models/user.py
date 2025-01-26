@@ -28,8 +28,8 @@ class UserBase(BaseModel):
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str
-    username: str
+    password: constr(min_length=8)
+    username: constr(min_length=3, pattern=r'^[a-zA-Z0-9_]+$')
 
     @field_validator('email')
     def email_to_lower(cls, v):
