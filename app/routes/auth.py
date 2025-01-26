@@ -140,6 +140,7 @@ async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
+    # Use form_data.username as email since we're using email for authentication
     user = await authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -158,12 +159,10 @@ async def login_for_access_token(
 
 @router.post("/logout")
 async def logout(
-    current_user: User = Depends(get_current_user),
-    redis: aioredis.Redis = Depends(get_redis)
+    redis: aioredis.Redis = Depends(get_redis),
+    token: str = Depends(oauth2_scheme)
 ):
     try:
-        # Get the current token
-        token = await oauth2_scheme(None)
         if not token:
             raise HTTPException(status_code=400, detail="No token provided")
         

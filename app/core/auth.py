@@ -38,7 +38,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
     """Get current user from JWT token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -48,21 +51,20 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         email: str = payload.get("sub")
-        if email is None:
+        if not email:
             raise credentials_exception
         
-        # Check token blacklist
         if await redis_client.exists(f"blacklist:{token}"):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has been revoked"
             )
         
-        user = await get_user_by_email(email)
-        if user is None:
+        user = await get_user_by_email(db, email)
+        if not user:
             raise credentials_exception
         return user
-    except JWTError:
+    except JWTError as e:
         raise credentials_exception
 
 async def authenticate_user(db: Session, email: str, password: str):
