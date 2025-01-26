@@ -13,7 +13,7 @@ from ..models.user import UserInDB, UserCreate, User, Token, TokenData
 from ..core.auth import get_current_user, get_user_by_email
 from ..core.user import get_user_by_email, get_user_by_username
 import logging
-from ..db.redis import redis_client
+from ..db.redis import redis_client, get_redis
 from redis import asyncio as aioredis
 
 logger = logging.getLogger(__name__)
@@ -157,7 +157,7 @@ async def logout(
         # Add token to blacklist
         await redis.setex(
             f"blacklist:{token}",
-            settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Match token expiration
+            settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             "true"
         )
         
