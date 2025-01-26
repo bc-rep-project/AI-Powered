@@ -9,7 +9,6 @@ from app.db.database import mongodb
 from .config import settings
 from ..db.redis import redis_client
 from .user import get_user_by_email, get_user_by_username
-from ..database import get_db
 from sqlalchemy.orm import Session
 
 # Security configuration
@@ -39,10 +38,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
-):
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    """Get current user from JWT token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -54,24 +51,25 @@ async def get_current_user(
         if email is None:
             raise credentials_exception
         
+        # Check token blacklist
         if await redis_client.exists(f"blacklist:{token}"):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has been revoked"
             )
         
-        user = await get_user_by_email(db, email)
+        user = await get_user_by_email(email)
         if user is None:
             raise credentials_exception
         return user
     except JWTError:
         raise credentials_exception
 
-async def authenticate_user(email: str, password: str) -> Optional[User]:
-    """Authenticate user with email and password."""
-    user = await mongodb.users.find_one({"email": email})
+async def authenticate_user(db: Session, email: str, password: str):
+    """Authenticate user with email and password using PostgreSQL"""
+    user = get_user_by_email(db, email)
     if not user:
-        return None
-    if not verify_password(password, user["password"]):
-        return None
-    return User(**user) 
+        return False
+    if not verify_password(password, user.hashed_password):
+        return False
+    return user 
