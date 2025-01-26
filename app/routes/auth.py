@@ -14,7 +14,7 @@ from ..core.auth import get_current_user, get_user_by_email
 from ..core.user import get_user_by_email, get_user_by_username
 import logging
 from ..db.redis import redis_client
-import aioredis
+from redis import asyncio as aioredis
 
 logger = logging.getLogger(__name__)
 
