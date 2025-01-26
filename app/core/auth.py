@@ -65,10 +65,10 @@ async def get_current_user(
         raise credentials_exception
 
 async def authenticate_user(db: Session, email: str, password: str):
-    """Authenticate user with email and password using PostgreSQL"""
-    user = get_user_by_email(db, email)
+    """Authenticate user with email and password"""
+    user = await get_user_by_email(db, email)
     if not user:
         return False
     if not verify_password(password, user.hashed_password):
         return False
-    return user 
+    return user
