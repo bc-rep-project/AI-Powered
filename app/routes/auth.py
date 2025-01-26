@@ -16,6 +16,7 @@ import logging
 from ..db.redis import redis_client, get_redis
 from redis import asyncio as aioredis
 from pydantic import ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -138,9 +139,8 @@ class LoginRequest(BaseModel):
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    # Use form_data.username as email since we're using email for authentication
     user = await authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
