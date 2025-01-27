@@ -9,7 +9,7 @@ from app.db.database import mongodb
 from .config import settings
 from ..db.redis import redis_client
 from .user import get_user_by_email, get_user_by_username
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, AsyncSession
 from ..database import get_db
 
 # Security configuration - Updated to use settings
@@ -64,11 +64,11 @@ async def get_current_user(
     except JWTError as e:
         raise credentials_exception
 
-async def authenticate_user(db: Session, email: str, password: str):
+async def authenticate_user(db: AsyncSession, email: str, password: str):
     """Authenticate user with email and password"""
     user = await get_user_by_email(db, email)
     if not user:
-        return False
+        return None  # Return None instead of False for async consistency
     if not verify_password(password, user.hashed_password):
-        return False
+        return None
     return user
