@@ -2,25 +2,18 @@ services:
   - type: web
     name: ai-recommendation-api
     env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    region: ohio
+    plan: free
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt && python app/setup_app.py
+    startCommand: cd app && uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: ai-recommendation-db
-          property: connectionString
-      - key: SECRET_KEY
-        generateValue: true
-      - key: MONGODB_URI
-        value: ${MONGODB_URI}  # Set this in Render dashboard
-      - key: MONGODB_DB_NAME
-        value: ai_recommendation
-      - key: REDIS_URL
-        sync: false
-      - key: MODEL_SERVICE_URL
-        value: https://your-model-service.onrender.com
-      - key: FRONTEND_URL
-        value: https://ai-powered-content-recommendation-frontend.vercel.app
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: MODEL_PATH
+        value: models/latest
+      - key: CONTENT_PATH
+        value: data/processed/movielens-small
+    healthCheckPath: /health
 
 databases:
   - name: ai-recommendation-db

@@ -1,9 +1,23 @@
+import sys
+import logging
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, constr
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
-import jwt
+
+# Try to import jwt module, fall back to PyJWT if needed
+try:
+    import jwt
+except ImportError:
+    try:
+        import PyJWT as jwt
+    except ImportError:
+        logging.error("Could not import jwt or PyJWT. Installing PyJWT...")
+        import subprocess
+        subprocess.run([sys.executable, "-m", "pip", "install", "PyJWT"], check=True)
+        import PyJWT as jwt
+
 from typing import Optional
 import uuid
 from sqlalchemy.orm import Session

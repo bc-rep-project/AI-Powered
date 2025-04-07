@@ -17,14 +17,17 @@ requests>=2.27.0
 python-dotenv>=0.20.0
 pytest>=7.0.0
 
-# For data downloading and processing
-zipfile36>=0.1.0
-
-# Database and authentication
-sqlalchemy>=1.4.0
+# Authentication
+PyJWT>=2.4.0
 python-jose>=3.3.0
 passlib>=1.7.4
 python-multipart>=0.0.5
+
+# For data downloading and processing
+zipfile36>=0.1.0
+
+# Database and monitoring
+sqlalchemy>=1.4.0
 prometheus-client>=0.11.0
 slowapi==0.1.8
 limits>=2.3.0

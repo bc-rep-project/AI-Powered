@@ -24,6 +24,10 @@ pip install "fastapi>=0.88.0,<0.95.0" "uvicorn>=0.18.0" "pydantic>=1.8.0,<2.0.0"
 echo "Installing utility packages..."
 pip install "requests>=2.27.0" "python-dotenv>=0.20.0"
 
+# Install authentication packages
+echo "Installing authentication packages..."
+pip install "PyJWT>=2.4.0" "python-jose>=3.3.0" "passlib>=1.7.4" "python-multipart>=0.0.5"
+
 # Install data processing tools
 echo "Installing data processing tools..."
 pip install "zipfile36>=0.1.0"
