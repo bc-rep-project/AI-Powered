@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import auth, health, recommendations, external
 from .core.config import settings
+from .database import init_db
 from .db.mongodb import mongodb
 from .db.redis import redis_client
 import logging
@@ -54,17 +55,42 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting up application...")
-    await mongodb.connect()
+    
+    # Create database tables if they don't exist
+    try:
+        logger.info("Creating database tables if they don't exist...")
+        init_db()
+    except Exception as e:
+        logger.error(f"Error creating database tables: {str(e)}")
+    
+    # Connect to MongoDB
+    try:
+        await mongodb.connect()
+        logger.info("Connected to MongoDB")
+    except Exception as e:
+        logger.warning(f"Could not connect to MongoDB: {str(e)}")
+    
+    # Test Redis connection
+    try:
+        await redis_client.ping()
+        logger.info("Connected to Redis")
+    except Exception as e:
+        logger.warning(f"Could not connect to Redis: {str(e)}")
+    
     logger.info(f"API Version: {settings.API_V1_STR}")
     logger.info(f"Environment: {'development' if 'localhost' in settings.FRONTEND_URL else 'production'}")
-    await redis_client.ping()  # Test Redis connection
-    logger.info("Connected to Redis")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Shutting down application...")
-    await mongodb.close()
-    await redis_client.close()
+    try:
+        await mongodb.close()
+    except:
+        pass
+    try:
+        await redis_client.close()
+    except:
+        pass
 
 # Root endpoint for health check
 @app.get("/")

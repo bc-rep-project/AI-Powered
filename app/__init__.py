@@ -21,7 +21,9 @@ required_packages = [
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "fastapi>=0.100.0",
-    "uvicorn>=0.22.0"
+    "uvicorn>=0.22.0",
+    "sqlalchemy>=1.4.0",
+    "psycopg2-binary>=2.9.3"
 ]
 
 for package in required_packages:
