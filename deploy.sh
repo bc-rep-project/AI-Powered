@@ -6,7 +6,7 @@ echo "Starting deployment script for AI-Powered Content Recommendation API"
 # Install core dependencies
 echo "Installing core dependencies..."
 pip install --upgrade pip
-pip install PyJWT requests fastapi uvicorn pydantic pydantic-settings
+pip install PyJWT>=2.4.0 requests>=2.27.0 fastapi>=0.100.0 uvicorn>=0.18.0 pydantic>=2.0.0 pydantic-settings>=2.0.0
 
 # Check if auth.py imports are correct
 AUTH_FILE="app/routes/auth.py"
