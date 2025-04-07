@@ -1,0 +1,31 @@
+#!/bin/bash
+set -e
+
+echo "Installing essential dependencies for recommendation system..."
+
+# Upgrade pip first
+pip install --upgrade pip
+
+# Install core ML dependencies with specified versions
+echo "Installing TensorFlow and scikit-learn..."
+pip install "tensorflow>=2.8.0,<2.11.0" "scikit-learn>=1.0.0" 
+
+echo "Installing pandas and numpy..."
+pip install "pandas>=1.3.0" "numpy>=1.20.0"
+
+echo "Installing matplotlib and visualization tools..."
+pip install "matplotlib>=3.5.0" "seaborn>=0.11.0" "tqdm>=4.60.0"
+
+# Install web framework components
+echo "Installing FastAPI and related packages..."
+pip install "fastapi>=0.88.0,<0.95.0" "uvicorn>=0.18.0" "pydantic>=1.8.0,<2.0.0"
+
+# Install utilities
+echo "Installing utility packages..."
+pip install "requests>=2.27.0" "python-dotenv>=0.20.0"
+
+# Install data processing tools
+echo "Installing data processing tools..."
+pip install "zipfile36>=0.1.0"
+
+echo "Installation complete!" 
