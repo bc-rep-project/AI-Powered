@@ -18,7 +18,7 @@ pip install "matplotlib>=3.5.0" "seaborn>=0.11.0" "tqdm>=4.60.0"
 
 # Install web framework components
 echo "Installing FastAPI and related packages..."
-pip install "fastapi>=0.88.0,<0.95.0" "uvicorn>=0.18.0" "pydantic>=1.8.0,<2.0.0"
+pip install "fastapi>=0.88.0,<0.95.0" "uvicorn>=0.18.0" "pydantic>=1.8.0,<2.0.0" "pydantic-settings>=2.0.0"
 
 # Install utilities
 echo "Installing utility packages..."

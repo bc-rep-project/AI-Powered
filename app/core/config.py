@@ -1,4 +1,15 @@
-from pydantic_settings import BaseSettings
+import sys
+import logging
+import subprocess
+
+# Try to import pydantic_settings
+try:
+    from pydantic_settings import BaseSettings
+except ImportError:
+    logging.warning("pydantic-settings not found. Attempting to install it...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "pydantic-settings>=2.0.0"])
+    from pydantic_settings import BaseSettings
+
 from pydantic import Field, PostgresDsn, HttpUrl, validator, AnyUrl
 from typing import Optional, Union, Any
 import secrets
