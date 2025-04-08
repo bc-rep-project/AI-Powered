@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 .env
 .env.local
+.env.development
 .env.*.local
 .venv
 venv/

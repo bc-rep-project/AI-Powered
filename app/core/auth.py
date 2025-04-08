@@ -7,9 +7,27 @@ from fastapi.security import OAuth2PasswordBearer
 from app.models.user import TokenData, User
 from app.db.database import mongodb
 from .config import settings
-from ..db.redis import redis_client
-from .user import get_user_by_email, get_user_by_username
-from sqlalchemy.orm import Session, AsyncSession
+from ..db.redis import redis_client, get_redis
+from sqlalchemy.orm import Session
+
+# Import AsyncSession with proper fallback
+try:
+    from sqlalchemy.ext.asyncio import AsyncSession
+except ImportError:
+    # For older SQLAlchemy versions or when async is not available
+    from sqlalchemy.orm import Session as AsyncSession
+
+# Ensure consistent imports for user functions
+try:
+    from .user import get_user_by_email, get_user_by_username
+except ImportError:
+    # Define fallback functions if import fails
+    async def get_user_by_email(db, email):
+        return db.query(User).filter(User.email == email).first()
+    
+    async def get_user_by_username(db, username):
+        return db.query(User).filter(User.username == username).first()
+
 from ..database import get_db
 
 # Security configuration - Updated to use settings
@@ -51,11 +69,17 @@ async def get_current_user(
         if not email:
             raise credentials_exception
         
-        if await redis_client.exists(f"blacklist:{token}"):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has been revoked"
-            )
+        # Only check Redis blacklist if Redis client is available
+        if redis_client:
+            try:
+                if await redis_client.exists(f"blacklist:{token}"):
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Token has been revoked"
+                    )
+            except Exception as e:
+                # If Redis check fails, log but continue
+                print(f"Redis check failed: {str(e)}")
         
         user = await get_user_by_email(db, email)
         if not user:
@@ -64,7 +88,7 @@ async def get_current_user(
     except JWTError as e:
         raise credentials_exception
 
-async def authenticate_user(db: AsyncSession, email: str, password: str):
+async def authenticate_user(db: Session, email: str, password: str):
     """Authenticate user with email and password"""
     user = await get_user_by_email(db, email)
     if not user:

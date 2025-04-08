@@ -29,7 +29,9 @@ python-multipart>=0.0.5
 zipfile36>=0.1.0
 
 # Database and monitoring
-sqlalchemy>=1.4.0
+greenlet>=2.0.0
+sqlalchemy[asyncio]>=1.4.0
+asyncpg>=0.27.0
 psycopg2-binary>=2.9.3
 aiosqlite>=0.17.0
 prometheus-client>=0.11.0

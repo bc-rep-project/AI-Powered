@@ -6,31 +6,54 @@ from pydantic import BaseModel, EmailStr, constr
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 
-# Try to import jwt module, fall back to PyJWT if needed
+# Try to import jwt module, fall back to PyJWT if needed, and install if not available
 try:
     import jwt
 except ImportError:
     try:
         import PyJWT as jwt
+        logging.info("Using PyJWT instead of jwt")
     except ImportError:
         logging.error("Could not import jwt or PyJWT. Installing PyJWT...")
-        import subprocess
-        subprocess.run([sys.executable, "-m", "pip", "install", "PyJWT"], check=True)
-        import PyJWT as jwt
+        try:
+            import subprocess
+            subprocess.run([sys.executable, "-m", "pip", "install", "PyJWT>=2.4.0"], check=True)
+            import PyJWT as jwt
+            logging.info("Successfully installed and imported PyJWT")
+        except Exception as e:
+            logging.error(f"Failed to install PyJWT: {e}")
+            raise RuntimeError("JWT library could not be installed. Please install it manually with 'pip install PyJWT'")
 
 from typing import Optional
 import uuid
 from sqlalchemy.orm import Session
+
+# Import AsyncSession with proper fallback
+try:
+    from sqlalchemy.ext.asyncio import AsyncSession
+except ImportError:
+    # For older SQLAlchemy versions or when async is not available
+    from sqlalchemy.orm import Session as AsyncSession
+
 from ..core.config import settings
 from ..database import get_db
 from ..models.user import UserInDB, UserCreate, User, Token, TokenData
-from ..core.auth import get_current_user, get_user_by_email
-from ..core.user import get_user_by_email, get_user_by_username
+from ..core.auth import get_current_user, verify_password, get_password_hash, create_access_token
+
+# Import Redis with error handling
+try:
+    from ..db.redis import redis_client, get_redis
+    from redis import asyncio as aioredis
+    redis_available = True
+except ImportError:
+    logging.warning("Redis not available. Logout functionality will be limited.")
+    redis_available = False
+    # Define dummy functions
+    async def get_redis():
+        return None
+
 import logging
-from ..db.redis import redis_client, get_redis
-from redis import asyncio as aioredis
 from pydantic import ValidationError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -40,31 +63,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/token")
 
-# Helper functions
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password):
-    return pwd_context.hash(password)
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    return encoded_jwt
-
 # Database operations
-def get_user_by_email(db: Session, email: str):
+async def get_user_by_email(db: Session, email: str):
     return db.query(UserInDB).filter(UserInDB.email.ilike(email)).first()
 
-def get_user_by_username(db: Session, username: str):
+async def get_user_by_username(db: Session, username: str):
     return db.query(UserInDB).filter(UserInDB.username.ilike(username)).first()
 
-def create_user(db: Session, user_data: dict):
+async def create_user(db: Session, user_data: dict):
     try:
         db_user = UserInDB(
             id=str(uuid.uuid4()),
@@ -81,8 +87,8 @@ def create_user(db: Session, user_data: dict):
         db.rollback()
         raise e
 
-def authenticate_user(db: Session, email: str, password: str):
-    user = get_user_by_email(db, email)
+async def authenticate_user(db: Session, email: str, password: str):
+    user = await get_user_by_email(db, email)
     if not user:
         return False
     if not verify_password(password, user.hashed_password):
@@ -91,18 +97,18 @@ def authenticate_user(db: Session, email: str, password: str):
 
 # Routes
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-def register(user: UserCreate, db: Session = Depends(get_db)):
+async def register(user: UserCreate, db: Session = Depends(get_db)):
     try:
         # Normalize email and username
         user.email = user.email.strip().lower()
         user.username = user.username.strip()
         
         # Check if email or username exists
-        existing_email = get_user_by_email(db, user.email)
+        existing_email = await get_user_by_email(db, user.email)
         if existing_email:
             raise HTTPException(status_code=400, detail="Email already registered")
         
-        existing_username = get_user_by_username(db, user.username)
+        existing_username = await get_user_by_username(db, user.username)
         if existing_username:
             raise HTTPException(status_code=400, detail="Username already taken")
 
@@ -121,7 +127,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
             "is_active": True
         }
         
-        new_user = create_user(db, user_data)
+        new_user = await create_user(db, user_data)
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
             data={"sub": user.email},
@@ -153,7 +159,7 @@ class LoginRequest(BaseModel):
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    db: AsyncSession = Depends(get_db)
+    db: Session = Depends(get_db)
 ):
     user = await authenticate_user(db, form_data.username, form_data.password)
     if not user:
@@ -173,13 +179,21 @@ async def login_for_access_token(
 
 @router.post("/logout")
 async def logout(
-    redis: aioredis.Redis = Depends(get_redis),
     token: str = Depends(oauth2_scheme)
 ):
     try:
         if not token:
             raise HTTPException(status_code=400, detail="No token provided")
         
+        if not redis_available:
+            logger.warning("Redis not available for token blacklisting")
+            return {"message": "Logged out successfully (token blacklisting not available)"}
+        
+        # Get Redis client
+        redis = await get_redis()
+        if not redis:
+            return {"message": "Logged out successfully (token blacklisting not available)"}
+            
         # Add token to blacklist
         await redis.setex(
             f"blacklist:{token}",
