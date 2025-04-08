@@ -23,7 +23,8 @@ required_packages = [
     "fastapi>=0.100.0",
     "uvicorn>=0.22.0",
     "sqlalchemy>=1.4.0",
-    "psycopg2-binary>=2.9.3"
+    "psycopg2-binary>=2.9.3",
+    "email-validator>=2.0.0"
 ]
 
 for package in required_packages:

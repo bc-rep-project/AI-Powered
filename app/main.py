@@ -4,11 +4,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from .routes import auth, health, recommendations, external
 from .core.config import settings
 from .database import init_db
-from .db.mongodb import mongodb
-from .db.redis import redis_client
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+# Import Redis and MongoDB with error handling
+try:
+    from .db.mongodb import mongodb
+except ImportError:
+    logger.warning("MongoDB module could not be imported. MongoDB features will be disabled.")
+    mongodb = None
+
+try:
+    from .db.redis import redis_client
+except ImportError:
+    logger.warning("Redis module could not be imported. Redis features will be disabled.")
+    redis_client = None
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -64,18 +76,20 @@ async def startup_event():
         logger.error(f"Error creating database tables: {str(e)}")
     
     # Connect to MongoDB
-    try:
-        await mongodb.connect()
-        logger.info("Connected to MongoDB")
-    except Exception as e:
-        logger.warning(f"Could not connect to MongoDB: {str(e)}")
+    if mongodb:
+        try:
+            await mongodb.connect()
+            logger.info("Connected to MongoDB")
+        except Exception as e:
+            logger.warning(f"Could not connect to MongoDB: {str(e)}")
     
     # Test Redis connection
-    try:
-        await redis_client.ping()
-        logger.info("Connected to Redis")
-    except Exception as e:
-        logger.warning(f"Could not connect to Redis: {str(e)}")
+    if redis_client:
+        try:
+            await redis_client.ping()
+            logger.info("Connected to Redis")
+        except Exception as e:
+            logger.warning(f"Could not connect to Redis: {str(e)}")
     
     logger.info(f"API Version: {settings.API_V1_STR}")
     logger.info(f"Environment: {'development' if 'localhost' in settings.FRONTEND_URL else 'production'}")
@@ -83,19 +97,31 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Shutting down application...")
-    try:
-        await mongodb.close()
-    except:
-        pass
-    try:
-        await redis_client.close()
-    except:
-        pass
+    if mongodb:
+        try:
+            await mongodb.close()
+        except Exception as e:
+            logger.warning(f"Error closing MongoDB connection: {str(e)}")
+    
+    if redis_client:
+        try:
+            await redis_client.close()
+        except Exception as e:
+            logger.warning(f"Error closing Redis connection: {str(e)}")
 
 # Root endpoint for health check
 @app.get("/")
 async def root():
     return {"status": "healthy", "message": "AI Content Recommendation API"}
+
+# Health check endpoint that doesn't require database connections
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "online",
+        "timestamp": datetime.now().isoformat(),
+        "version": getattr(settings, "VERSION", "1.0.0")
+    }
 
 # Include routers
 app.include_router(auth.router, prefix=settings.API_V1_STR)

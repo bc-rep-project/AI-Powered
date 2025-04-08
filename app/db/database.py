@@ -34,16 +34,33 @@ except Exception as e:
 # Redis setup
 redis_client = None
 try:
-    redis_client = Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_PORT,
-        password=settings.REDIS_PASSWORD,
-        decode_responses=True
-    )
-    redis_client.ping()
-    logger.info("Successfully connected to Redis")
+    # Check if we have a Redis URL or separate config
+    if hasattr(settings, 'REDIS_URL') and settings.REDIS_URL:
+        # Connect using URL
+        redis_client = Redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True
+        )
+        logger.info(f"Connected to Redis using URL: {settings.REDIS_URL}")
+    elif hasattr(settings, 'REDIS_HOST') and settings.REDIS_HOST:
+        # Connect using individual parameters
+        redis_client = Redis(
+            host=settings.REDIS_HOST,
+            port=getattr(settings, 'REDIS_PORT', 6379),
+            password=getattr(settings, 'REDIS_PASSWORD', None),
+            db=getattr(settings, 'REDIS_DB', 0),
+            decode_responses=True
+        )
+        logger.info(f"Connected to Redis at {settings.REDIS_HOST}:{getattr(settings, 'REDIS_PORT', 6379)}")
+    else:
+        logger.warning("Redis connection not configured. Some features may be limited.")
+    
+    # Test connection if client was created
+    if redis_client:
+        redis_client.ping()
 except Exception as e:
     logger.error(f"Redis connection error: {str(e)}")
+    redis_client = None  # Ensure it's None if connection failed
 
 # Database dependency
 async def get_db():

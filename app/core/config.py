@@ -80,6 +80,27 @@ class Settings(BaseSettings):
         env="REDIS_URL",
         description="Full Redis connection URL including credentials"
     )
+    # Add individual Redis connection parameters
+    REDIS_HOST: str = Field(
+        "localhost",
+        env="REDIS_HOST",
+        description="Redis host address"
+    )
+    REDIS_PORT: int = Field(
+        6379,
+        env="REDIS_PORT",
+        description="Redis port number"
+    )
+    REDIS_PASSWORD: Optional[str] = Field(
+        None,
+        env="REDIS_PASSWORD",
+        description="Redis password"
+    )
+    REDIS_DB: int = Field(
+        0,
+        env="REDIS_DB",
+        description="Redis database number"
+    )
     
     # API Configuration
     API_V1_STR: str = "/api/v1"
