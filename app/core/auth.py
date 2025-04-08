@@ -89,7 +89,7 @@ async def get_current_user(
     except JWTError as e:
         raise credentials_exception
 
-async def authenticate_user(db: Session, email: str, password: str):
+async def authenticate_user(db, email: str, password: str):
     """Authenticate user with email and password"""
     user = await get_user_by_email(db, email)
     if not user:

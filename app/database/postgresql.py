@@ -67,7 +67,7 @@ def init_db():
         return False
 
 def get_db():
-    """Get database session."""
+    """Get synchronous database session."""
     db = SessionLocal()
     try:
         yield db

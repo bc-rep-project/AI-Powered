@@ -65,6 +65,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/token")
 
 # Database operations
 async def create_user(db: Session, user_data: dict):
+    """Create a new user with proper error handling for both sync/async operations"""
     try:
         db_user = UserInDB(
             id=str(uuid.uuid4()),
@@ -73,12 +74,17 @@ async def create_user(db: Session, user_data: dict):
             hashed_password=user_data["hashed_password"],
             is_active=True
         )
+        
+        # For synchronous db operations
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
         return db_user
     except Exception as e:
-        db.rollback()
+        # For synchronous db operations
+        if hasattr(db, 'rollback'):
+            db.rollback()
+        logger.error(f"Error creating user: {str(e)}")
         raise e
 
 # Routes
@@ -131,6 +137,9 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
             status_code=422,
             detail=e.errors()
         )
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         logger.error(f"Registration error: {str(e)}")
         raise HTTPException(
@@ -147,21 +156,28 @@ async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    user = await get_user_by_email(db, form_data.username)
-    if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
+    try:
+        user = await get_user_by_email(db, form_data.username)
+        if not user or not verify_password(form_data.password, user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user.email},
+            expires_delta=access_token_expires
         )
-    
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.email},
-        expires_delta=access_token_expires
-    )
-    
-    return {"access_token": access_token, "token_type": "bearer"}
+        
+        return {"access_token": access_token, "token_type": "bearer"}
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Login failed. Please try again later."
+        )
 
 @router.post("/logout")
 async def logout(
