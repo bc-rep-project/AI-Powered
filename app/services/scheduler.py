@@ -114,22 +114,42 @@ class ModelRetrainingScheduler:
     
     async def retrain_model(self) -> Dict[str, Any]:
         """
-        Retrain the recommendation model.
-        
-        Returns:
-            Dict[str, Any]: Result of the retraining process
+        Retrain the recommendation model based on available data.
         """
+        logger.info("Starting model retraining...")
+        
         try:
-            # Create timestamp for versioning
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            # Record retrain start time
+            retrain_start = datetime.now()
             
-            # Build model paths
-            models_dir = Path(settings.MODEL_PATH)
-            models_dir.mkdir(exist_ok=True, parents=True)
-            model_version_dir = models_dir / f"recommender_{timestamp}"
+            # Get model paths
+            model_path = getattr(settings, "MODEL_PATH", "models/latest")
+            if not model_path:
+                model_path = "models/latest"
+                
+            save_path = os.path.join("models", f"recommender_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
             
-            # Get data directory
-            data_dir = Path(settings.CONTENT_PATH) / self.dataset
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            
+            # Get dataset paths
+            dataset_path = os.path.join("data", "processed", self.dataset)
+            if not os.path.exists(dataset_path):
+                logger.error(f"Dataset path {dataset_path} does not exist")
+                return {
+                    "success": False, 
+                    "error": f"Dataset path {dataset_path} not found"
+                }
+            
+            # Set training parameters 
+            params = {
+                "data_dir": dataset_path,
+                "model_dir": save_path,
+                "epochs": self.epochs,
+                "batch_size": self.batch_size,
+                "embedding_dim": getattr(settings, "EMBEDDING_DIM", 32),
+                "learning_rate": getattr(settings, "LEARNING_RATE", 0.001)
+            }
             
             # Build command to run training script
             script_path = Path(__file__).parent.parent.parent / "scripts" / "train_model.py"
@@ -139,10 +159,12 @@ class ModelRetrainingScheduler:
             # Run training command
             cmd = [
                 "python", str(script_path),
-                "--data-dir", str(data_dir),
-                "--model-dir", str(model_version_dir),
-                "--epochs", str(self.epochs),
-                "--batch-size", str(self.batch_size)
+                "--data-dir", str(params["data_dir"]),
+                "--model-dir", str(params["model_dir"]),
+                "--epochs", str(params["epochs"]),
+                "--batch-size", str(params["batch_size"]),
+                "--embedding-dim", str(params["embedding_dim"]),
+                "--learning-rate", str(params["learning_rate"])
             ]
             
             logger.info(f"Running retraining command: {' '.join(cmd)}")
@@ -160,13 +182,13 @@ class ModelRetrainingScheduler:
                 raise Exception(f"Model retraining failed: {result.stderr}")
             
             # Update the latest model symlink
-            latest_symlink = models_dir / "latest"
+            latest_symlink = Path(model_path)
             if latest_symlink.exists() and latest_symlink.is_symlink():
                 latest_symlink.unlink()
             
             # Create relative symlink to the new model
             os.symlink(
-                f"recommender_{timestamp}", 
+                f"recommender_{datetime.now().strftime('%Y%m%d_%H%M%S')}", 
                 str(latest_symlink),
                 target_is_directory=True
             )
@@ -193,11 +215,11 @@ class ModelRetrainingScheduler:
                     
                     # Insert new model info
                     await mongodb.models.insert_one({
-                        "id": f"recommender_{timestamp}",
+                        "id": f"recommender_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
                         "name": "Recommendation Model",
-                        "version": timestamp,
+                        "version": datetime.now().strftime('%Y%m%d_%H%M%S'),
                         "created_at": datetime.now(),
-                        "path": str(model_version_dir),
+                        "path": str(save_path),
                         "is_active": True,
                         "performance": {
                             "accuracy": 0.0,  # These would be populated by evaluation
@@ -210,8 +232,8 @@ class ModelRetrainingScheduler:
             
             return {
                 "success": True,
-                "model_path": str(model_version_dir),
-                "timestamp": timestamp
+                "model_path": str(save_path),
+                "timestamp": datetime.now().strftime('%Y%m%d_%H%M%S')
             }
             
         except Exception as e:

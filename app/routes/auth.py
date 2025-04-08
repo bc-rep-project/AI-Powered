@@ -156,27 +156,59 @@ async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
+    """
+    OAuth2 compatible token login, get an access token for future requests.
+    """
     try:
-        user = await get_user_by_email(db, form_data.username)
-        if not user or not verify_password(form_data.password, user.hashed_password):
+        # Check if the user exists
+        user = None
+        
+        # Try to get user by email first (form_data.username could be email)
+        if '@' in form_data.username:
+            logger.info(f"Attempting to authenticate with email: {form_data.username}")
+            user = await get_user_by_email(db, form_data.username)
+        
+        # If not found by email, try by username
+        if user is None:
+            logger.info(f"Attempting to authenticate with username: {form_data.username}")
+            user = await get_user_by_username(db, form_data.username)
+        
+        # If user still not found
+        if user is None:
+            logger.warning(f"Login attempt failed: User not found: {form_data.username}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect email or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
+        # Verify the password
+        if not verify_password(form_data.password, user.hashed_password):
+            logger.warning(f"Login attempt failed: Incorrect password for user: {form_data.username}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Create access token
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
-            data={"sub": user.email},
-            expires_delta=access_token_expires
+            data={"sub": user.email}, expires_delta=access_token_expires
         )
         
+        logger.info(f"User logged in successfully: {user.email}")
         return {"access_token": access_token, "token_type": "bearer"}
+    except HTTPException as e:
+        # Log the specific HTTP exception
+        logger.error(f"Login error: {e.status_code}: {e.detail}")
+        raise
     except Exception as e:
-        logger.error(f"Login error: {str(e)}")
+        # Log any unexpected errors
+        logger.error(f"Unexpected login error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Login failed. Please try again later."
+            detail="Login failed. Please try again later.",
         )
 
 @router.post("/logout")

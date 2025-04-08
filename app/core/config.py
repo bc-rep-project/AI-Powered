@@ -34,6 +34,16 @@ class Settings(BaseSettings):
     MODEL_CHECKPOINT_DIR: str = "checkpoints"
     MODEL_NAME: str = "recommendation_model"
     MODEL_SAVE_PATH: str = "models"
+    MODEL_PATH: str = Field(
+        "models/latest",
+        env="MODEL_PATH",
+        description="Path to the latest trained model"
+    )
+    CONTENT_PATH: str = Field(
+        "data/processed/movielens-small",
+        env="CONTENT_PATH",
+        description="Path to the processed content data"
+    )
     
     # Model Retraining Settings
     MODEL_RETRAINING_INTERVAL_HOURS: int = Field(
