@@ -42,7 +42,7 @@ class ContentItemDB(Base):
     title = Column(Text, nullable=False)
     description = Column(Text, nullable=True)
     content_type = Column(String, nullable=False)
-    metadata = Column(JSONB, nullable=True)
+    content_metadata = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=True)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 
@@ -53,7 +53,7 @@ class ContentItemBase(BaseModel):
     content_type: str
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class ContentItemCreate(ContentItemBase):
     content_id: Optional[str] = None

@@ -19,7 +19,7 @@ class UserProfileBase(BaseModel):
     preferences: Optional[Dict[str, Any]] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class UserProfileCreate(UserProfileBase):
     pass

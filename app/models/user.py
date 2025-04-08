@@ -1,44 +1,35 @@
 from sqlalchemy import Column, String, Boolean, DateTime
 from sqlalchemy.sql import func
-from pydantic import BaseModel, EmailStr, constr, validator
-from typing import Optional, Dict, Any
+from pydantic import BaseModel, EmailStr, constr
+from typing import Optional
 from datetime import datetime
 from pydantic import field_validator
-import uuid
 
 from ..db.database import Base
 
-# Database model for user
 class UserInDB(Base):
     __tablename__ = "users"
 
-    id = Column(String, primary_key=True)
-    email = Column(String, unique=True, nullable=True)
-    username = Column(String, unique=True, nullable=True)
-    hashed_password = Column(String, nullable=True)
+    id = Column(String, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
     picture = Column(String, nullable=True)
     oauth_provider = Column(String, nullable=True)
-    is_active = Column(Boolean, default=True, nullable=True)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=True)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 class UserBase(BaseModel):
     email: EmailStr
     username: str
     picture: Optional[str] = None
     oauth_provider: Optional[str] = None
-    
-    class Config:
-        orm_mode = True
 
-class UserCreate(UserBase):
-    password: str
-    
-    @validator('password')
-    def password_strength(cls, v):
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters")
-        return v
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: constr(min_length=8)
+    username: constr(min_length=3, pattern=r'^[a-zA-Z0-9_]+$')
 
     @field_validator('email')
     def email_to_lower(cls, v):
@@ -63,10 +54,8 @@ class UserCreate(UserBase):
 
 class User(UserBase):
     id: str
-    is_active: Optional[bool] = True
-    picture: Optional[str] = None
-    oauth_provider: Optional[str] = None
-    created_at: Optional[datetime] = None
+    is_active: bool = True
+    created_at: datetime
     updated_at: Optional[datetime] = None
     
     class Config:

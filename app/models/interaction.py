@@ -15,7 +15,7 @@ class InteractionDB(Base):
     interaction_type = Column(Text, nullable=False)
     value = Column(Numeric, nullable=True)
     timestamp = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=True)
-    metadata = Column(JSONB, nullable=True)
+    interaction_metadata = Column(JSONB, nullable=True)
 
 # Pydantic models
 class InteractionBase(BaseModel):
@@ -24,7 +24,7 @@ class InteractionBase(BaseModel):
     value: Optional[float] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class InteractionCreate(InteractionBase):
     user_id: Optional[str] = None

@@ -185,7 +185,7 @@ async def create_interaction(
             content_id=interaction_create.content_id,
             interaction_type=interaction_create.interaction_type,
             value=interaction_create.value,
-            metadata=interaction_create.metadata
+            interaction_metadata=interaction_create.metadata
         )
         
         db.add(db_interaction)
