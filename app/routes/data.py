@@ -310,9 +310,9 @@ async def download_dataset(
 
 @router.post("/models/train", response_model=DataProcessingResponse)
 async def train_model(
-    dataset_name: str = "movielens-small",
     background_tasks: BackgroundTasks,
-    user = Depends(get_current_user)
+    user = Depends(get_current_user),
+    dataset_name: str = "movielens-small"
 ):
     """Train a recommendation model on a dataset"""
     try:
@@ -499,9 +499,9 @@ async def activate_model(
 
 @router.get("/interactions/my", response_model=List[Interaction])
 async def get_my_interactions(
-    limit: int = 50,
     user = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    limit: int = 50
 ):
     """Get the current user's interactions"""
     try:

@@ -5,6 +5,8 @@ from .routes import auth, health, recommendations, external, data, dataset, admi
 from .core.config import settings
 import logging
 import importlib
+import os
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +143,25 @@ async def shutdown_event():
 @app.get("/")
 async def root():
     return {"status": "healthy", "message": "AI Content Recommendation API"}
+
+# Direct health check endpoint (without API prefix)
+@app.get("/health")
+async def health():
+    """Basic health check endpoint that matches the one in the health router but is available without the API prefix"""
+    try:
+        from .routes.health import health_check
+        return await health_check()
+    except Exception as e:
+        logger.error(f"Health check error: {str(e)}")
+        return {
+            "status": "degraded",
+            "version": "1.0.0",
+            "timestamp": datetime.now().isoformat(),
+            "environment": "production" if os.getenv("ENV") == "production" else "development",
+            "resources": {
+                "message": "Error checking resources"
+            }
+        }
 
 # Include routers
 app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["auth"])

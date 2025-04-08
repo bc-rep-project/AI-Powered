@@ -12,6 +12,11 @@ services:
       pip install redis>=4.2.0 &&
       pip install psutil>=5.9.0 &&
       pip install -r requirements.txt &&
+      mkdir -p data/raw data/processed models &&
+      echo "Checking for critical directories and files..." &&
+      ls -la app/ &&
+      echo "Verifying imports..." &&
+      python -c "import fastapi; import pydantic; import pydantic_settings; import psutil; import PyJWT; print('All critical imports verified')" &&
       python app/setup_app.py
     startCommand: cd app && uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
@@ -21,7 +26,9 @@ services:
         value: models/latest
       - key: CONTENT_PATH
         value: data/processed/movielens-small
-    healthCheckPath: /health
+      - key: LOG_LEVEL
+        value: DEBUG
+    healthCheckPath: /api/v1/health
 
 databases:
   - name: ai-recommendation-db
