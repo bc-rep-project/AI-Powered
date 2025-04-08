@@ -18,6 +18,7 @@ email-validator>=2.0.0
 requests>=2.27.0
 python-dotenv>=0.20.0
 pytest>=7.0.0
+psutil>=5.9.0  # For system monitoring in health checks
 
 # Authentication
 PyJWT>=2.4.0

@@ -25,7 +25,7 @@ pip install redis>=4.2.0
 
 # Install utility packages
 echo "Installing utility packages..."
-pip install requests>=2.27.0 python-dotenv>=0.20.0
+pip install requests>=2.27.0 python-dotenv>=0.20.0 psutil>=5.9.0
 
 # Check if auth.py imports are correct
 AUTH_FILE="app/routes/auth.py"

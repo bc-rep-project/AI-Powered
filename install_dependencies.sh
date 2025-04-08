@@ -22,7 +22,7 @@ pip install "fastapi>=0.100.0" "uvicorn>=0.18.0" "pydantic>=2.0.0" "pydantic-set
 
 # Install utilities
 echo "Installing utility packages..."
-pip install "requests>=2.27.0" "python-dotenv>=0.20.0"
+pip install "requests>=2.27.0" "python-dotenv>=0.20.0" "psutil>=5.9.0"
 
 # Install authentication packages
 echo "Installing authentication packages..."

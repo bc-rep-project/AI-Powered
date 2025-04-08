@@ -3,11 +3,18 @@ from pydantic import BaseModel
 from typing import Dict, Optional
 from datetime import datetime
 import os
-import psutil
-import platform
+import logging
 from ..core.auth import get_current_user
 from ..services.scheduler import get_scheduler
 from ..services.interaction_counter import get_interaction_count
+
+# Try to import psutil, but provide fallback if not available
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    logging.warning("psutil not available. System resource monitoring will be limited.")
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -23,12 +30,18 @@ async def health_check():
     """Basic health check endpoint"""
     environment = "production" if os.getenv("ENV") == "production" else "development"
     
-    # Gather basic system resources
-    resources = {
-        "cpu_percent": psutil.cpu_percent(),
-        "memory_percent": psutil.virtual_memory().percent,
-        "disk_percent": psutil.disk_usage('/').percent,
-    }
+    # Gather basic system resources if psutil is available
+    resources = None
+    if PSUTIL_AVAILABLE:
+        resources = {
+            "cpu_percent": psutil.cpu_percent(),
+            "memory_percent": psutil.virtual_memory().percent,
+            "disk_percent": psutil.disk_usage('/').percent,
+        }
+    else:
+        resources = {
+            "message": "System resource monitoring not available (psutil not installed)"
+        }
     
     return HealthResponse(
         status="healthy",

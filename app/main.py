@@ -3,10 +3,8 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import auth, health, recommendations, external, data, dataset, admin
 from .core.config import settings
-from .db.mongodb import mongodb
-from .db.redis import redis_client
-from .services.scheduler import init_scheduler, get_scheduler
 import logging
+import importlib
 
 logger = logging.getLogger(__name__)
 
@@ -55,14 +53,33 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting up application...")
-    await mongodb.connect()
+    
+    # Import modules with safe error handling
+    try:
+        from .db.mongodb import mongodb
+        await mongodb.connect()
+        logger.info("Connected to MongoDB")
+    except ImportError:
+        logger.warning("MongoDB module not available")
+    except Exception as e:
+        logger.error(f"Error connecting to MongoDB: {str(e)}")
+    
+    try:
+        from .db.redis import redis_client
+        await redis_client.ping()
+        logger.info("Connected to Redis")
+    except ImportError:
+        logger.warning("Redis module not available")
+    except Exception as e:
+        logger.error(f"Error connecting to Redis: {str(e)}")
+    
     logger.info(f"API Version: {settings.API_V1_STR}")
     logger.info(f"Environment: {'development' if 'localhost' in settings.FRONTEND_URL else 'production'}")
-    await redis_client.ping()  # Test Redis connection
-    logger.info("Connected to Redis")
     
     # Initialize and start the model retraining scheduler
     try:
+        from .services.scheduler import init_scheduler, get_scheduler
+        
         # Get retraining configuration from settings
         retraining_interval = getattr(settings, "MODEL_RETRAINING_INTERVAL_HOURS", 12)
         interaction_threshold = getattr(settings, "MODEL_RETRAINING_INTERACTION_THRESHOLD", 50)
@@ -80,6 +97,8 @@ async def startup_event():
         )
         scheduler.start()
         logger.info(f"Model retraining scheduler started with interval {retraining_interval} hours and threshold {interaction_threshold} interactions")
+    except ImportError:
+        logger.warning("Scheduler module not available, model retraining will be disabled")
     except Exception as e:
         logger.error(f"Error starting model retraining scheduler: {str(e)}")
 
@@ -88,13 +107,35 @@ async def shutdown_event():
     logger.info("Shutting down application...")
     
     # Stop the scheduler if it's running
-    scheduler = get_scheduler()
-    if scheduler:
-        scheduler.stop()
-        logger.info("Model retraining scheduler stopped")
+    try:
+        from .services.scheduler import get_scheduler
+        scheduler = get_scheduler()
+        if scheduler:
+            scheduler.stop()
+            logger.info("Model retraining scheduler stopped")
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.error(f"Error stopping scheduler: {str(e)}")
     
-    await mongodb.close()
-    await redis_client.close()
+    # Close database connections
+    try:
+        from .db.mongodb import mongodb
+        await mongodb.close()
+        logger.info("MongoDB connection closed")
+    except (ImportError, AttributeError):
+        pass
+    except Exception as e:
+        logger.error(f"Error closing MongoDB connection: {str(e)}")
+    
+    try:
+        from .db.redis import redis_client
+        await redis_client.close()
+        logger.info("Redis connection closed")
+    except (ImportError, AttributeError):
+        pass
+    except Exception as e:
+        logger.error(f"Error closing Redis connection: {str(e)}")
 
 # Root endpoint for health check
 @app.get("/")
