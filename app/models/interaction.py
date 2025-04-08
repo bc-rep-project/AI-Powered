@@ -1,33 +1,41 @@
-from sqlalchemy import Column, Integer, String, DateTime, Enum, Float, ForeignKey
-from sqlalchemy.sql import func
+from pydantic import BaseModel
+from typing import Optional, Dict, Any
+from datetime import datetime
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Numeric
+from sqlalchemy.dialects.postgresql import JSONB
 from ..database import Base
-import enum
 
-class InteractionType(str, enum.Enum):
-    VIEW = "view"
-    LIKE = "like"
-    BOOKMARK = "bookmark"
-    PURCHASE = "purchase"
-    SHARE = "share"
-    COMMENT = "comment"
-    TIME_SPENT = "time_spent"
-
-class Interaction(Base):
+# Database model for interactions
+class InteractionDB(Base):
     __tablename__ = "interactions"
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    content_id = Column(Text, nullable=False)
+    interaction_type = Column(Text, nullable=False)
+    value = Column(Numeric, nullable=True)
+    timestamp = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=True)
+    metadata = Column(JSONB, nullable=True)
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    content_id = Column(Integer, ForeignKey("contents.id"), nullable=False)
-    interaction_type = Column(Enum(InteractionType), nullable=False)
+# Pydantic models
+class InteractionBase(BaseModel):
+    content_id: str
+    interaction_type: str
+    value: Optional[float] = None
     
-    # Interaction metadata
-    value = Column(Float)  # For storing ratings or time spent
-    metadata = Column(String)  # JSON field for additional interaction data
-    
-    # Timestamp fields
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    # Context of the interaction
-    session_id = Column(String)
-    user_agent = Column(String)
-    referrer = Column(String) 
+    class Config:
+        orm_mode = True
+
+class InteractionCreate(InteractionBase):
+    user_id: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+class Interaction(InteractionBase):
+    id: int
+    user_id: str
+    timestamp: datetime
+    metadata: Optional[Dict[str, Any]] = None
+
+class InteractionUpdate(BaseModel):
+    value: Optional[float] = None
+    metadata: Optional[Dict[str, Any]] = None 

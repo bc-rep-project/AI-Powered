@@ -38,7 +38,7 @@ except ImportError:
 from ..core.config import settings
 from ..database import get_db
 from ..models.user import UserInDB, UserCreate, User, Token, TokenData
-from ..core.auth import get_current_user, verify_password, get_password_hash, create_access_token
+from ..core.auth import get_current_user, verify_password, get_password_hash, create_access_token, get_user_by_email, get_user_by_username
 
 # Import Redis with error handling
 try:
@@ -64,12 +64,6 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/token")
 
 # Database operations
-async def get_user_by_email(db: Session, email: str):
-    return db.query(UserInDB).filter(UserInDB.email.ilike(email)).first()
-
-async def get_user_by_username(db: Session, username: str):
-    return db.query(UserInDB).filter(UserInDB.username.ilike(username)).first()
-
 async def create_user(db: Session, user_data: dict):
     try:
         db_user = UserInDB(
@@ -86,14 +80,6 @@ async def create_user(db: Session, user_data: dict):
     except Exception as e:
         db.rollback()
         raise e
-
-async def authenticate_user(db: Session, email: str, password: str):
-    user = await get_user_by_email(db, email)
-    if not user:
-        return False
-    if not verify_password(password, user.hashed_password):
-        return False
-    return user
 
 # Routes
 @router.post("/register", status_code=status.HTTP_201_CREATED)
@@ -161,8 +147,8 @@ async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    user = await authenticate_user(db, form_data.username, form_data.password)
-    if not user:
+    user = await get_user_by_email(db, form_data.username)
+    if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",

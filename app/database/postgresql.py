@@ -1,11 +1,13 @@
 from pydantic_settings import BaseSettings
 import os
 import logging
-from sqlalchemy import create_engine, Column, Integer, String, text, Boolean
+import uuid
+from sqlalchemy import create_engine, Column, Integer, String, text, Boolean, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from ..core.config import settings
+from datetime import datetime
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -43,11 +45,15 @@ Base = declarative_base()
 class UserInDB(Base):
     __tablename__ = "users"
     
-    id = Column(String, primary_key=True)
-    email = Column(String, unique=True, nullable=False)
-    username = Column(String, unique=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    is_active = Column(Boolean, default=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    email = Column(String, unique=True, nullable=True)
+    username = Column(String, unique=True, nullable=True)
+    hashed_password = Column(String, nullable=True)
+    picture = Column(String, nullable=True)
+    oauth_provider = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
 
 # Initialize database function
 def init_db():

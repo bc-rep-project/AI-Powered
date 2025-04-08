@@ -4,7 +4,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from app.models.user import TokenData, User
+from app.models.user import TokenData, User, UserInDB
 from app.db.database import mongodb
 from .config import settings
 from ..db.redis import redis_client, get_redis
@@ -23,10 +23,10 @@ try:
 except ImportError:
     # Define fallback functions if import fails
     async def get_user_by_email(db, email):
-        return db.query(User).filter(User.email == email).first()
+        return db.query(UserInDB).filter(UserInDB.email.ilike(email)).first()
     
     async def get_user_by_username(db, username):
-        return db.query(User).filter(User.username == username).first()
+        return db.query(UserInDB).filter(UserInDB.username.ilike(username)).first()
 
 from ..database import get_db
 
@@ -72,7 +72,8 @@ async def get_current_user(
         # Only check Redis blacklist if Redis client is available
         if redis_client:
             try:
-                if await redis_client.exists(f"blacklist:{token}"):
+                redis = await get_redis()
+                if redis and await redis.exists(f"blacklist:{token}"):
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
                         detail="Token has been revoked"
