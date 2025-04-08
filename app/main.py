@@ -1,7 +1,8 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import auth, health, recommendations, external, data, dataset, admin
+from .routes import auth, recommendations, external, data, dataset, admin
+from .routes import health as health_router  # Rename the import to avoid collision
 from .core.config import settings
 import logging
 import importlib
@@ -146,7 +147,7 @@ async def root():
 
 # Direct health check endpoint (without API prefix)
 @app.get("/health")
-async def health():
+async def health_check():
     """Basic health check endpoint that matches the one in the health router but is available without the API prefix"""
     try:
         from .routes.health import health_check
@@ -165,7 +166,7 @@ async def health():
 
 # Include routers
 app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["auth"])
-app.include_router(health.router, prefix=settings.API_V1_STR, tags=["health"])
+app.include_router(health_router.router, prefix=settings.API_V1_STR, tags=["health"])  # Use the renamed import
 app.include_router(recommendations.router, prefix=settings.API_V1_STR, tags=["recommendations"])
 app.include_router(external.router, prefix=settings.API_V1_STR, tags=["external"])
 app.include_router(data.router, prefix=settings.API_V1_STR, tags=["data"])
