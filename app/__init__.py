@@ -41,6 +41,28 @@ except ImportError:
     except Exception as e:
         logger.error(f"Failed to install pydantic-settings: {str(e)}")
 
+# Check for ML dependencies
+ml_dependencies = [
+    "tensorflow>=2.8.0",
+    "scikit-learn>=1.0.0",
+    "pandas>=1.3.0",
+    "numpy>=1.20.0",
+    "matplotlib>=3.5.0"
+]
+
+for package in ml_dependencies:
+    try:
+        package_name = package.split('>=')[0]
+        __import__(package_name)
+        logger.info(f"Package {package_name} already installed")
+    except ImportError:
+        logger.warning(f"{package_name} not found. Attempting to install {package}...")
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+            logger.info(f"Successfully installed {package}")
+        except Exception as e:
+            logger.error(f"Failed to install {package_name}: {str(e)}")
+
 # Check other required packages
 required_packages = [
     "pydantic>=2.0.0",

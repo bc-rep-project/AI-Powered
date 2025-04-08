@@ -35,6 +35,28 @@ class Settings(BaseSettings):
     MODEL_NAME: str = "recommendation_model"
     MODEL_SAVE_PATH: str = "models"
     
+    # Model Retraining Settings
+    MODEL_RETRAINING_INTERVAL_HOURS: int = Field(
+        12,
+        env="MODEL_RETRAINING_INTERVAL_HOURS",
+        description="Hours between model retraining checks"
+    )
+    MODEL_RETRAINING_INTERACTION_THRESHOLD: int = Field(
+        50,
+        env="MODEL_RETRAINING_INTERACTION_THRESHOLD",
+        description="Minimum number of new interactions needed to trigger retraining"
+    )
+    DATASET_NAME: str = Field(
+        "movielens-small",
+        env="DATASET_NAME",
+        description="Name of the dataset to use for model training"
+    )
+    NUM_EPOCHS: int = Field(
+        10,
+        env="NUM_EPOCHS",
+        description="Number of training epochs for model training"
+    )
+    
     # Database Configuration
     DATABASE_URL: Optional[Union[PostgresDsn, str]] = None
     DB_HOST: str = "localhost"

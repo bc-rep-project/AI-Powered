@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.content import ContentItem, ContentItemDB
 from ..models.interaction import InteractionCreate, InteractionDB
+from ..services.interaction_counter import increment_interaction_counter
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +193,9 @@ async def create_interaction(
         db.commit()
         db.refresh(db_interaction)
         
+        # Increment the interaction counter for model retraining
+        await increment_interaction_counter()
+        
         # Format response
         return MovieInteractionResponse(
             id=db_interaction.id,
@@ -260,4 +264,79 @@ async def get_years(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve years: {str(e)}"
+        )
+
+@router.get("/refresh", response_model=MovieResponse)
+async def refresh_dataset(
+    user = Depends(get_current_user)
+):
+    """Refresh the content dataset if it's missing"""
+    try:
+        # Check if content items exist
+        content_items = get_content_items()
+        
+        if not content_items:
+            # Dataset is missing or empty, try to download it
+            logger.info("Content dataset missing, downloading MovieLens dataset...")
+            
+            # Run the data processor script
+            import os
+            import subprocess
+            import sys
+            from pathlib import Path
+            
+            # Create directories if they don't exist
+            os.makedirs("data/raw", exist_ok=True)
+            os.makedirs("data/processed", exist_ok=True)
+            
+            # Run data_processor.py script
+            script_path = str(Path(__file__).parent.parent.parent / "scripts" / "data_processor.py")
+            
+            try:
+                subprocess.run([
+                    sys.executable,
+                    script_path,
+                    "--dataset", "movielens-small",
+                    "--raw-dir", "data/raw",
+                    "--processed-dir", "data/processed"
+                ], check=True)
+                
+                # Reload content items
+                content_items = get_content_items()
+                
+                if content_items:
+                    return MovieResponse(
+                        content_id="refresh_success",
+                        title="Dataset Refreshed",
+                        description="The MovieLens dataset has been successfully downloaded and processed.",
+                        genres=["refresh", "success"],
+                        year=2025
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Downloaded dataset but content items are still missing"
+                    )
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Error running data processor: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to download dataset: {str(e)}"
+                )
+        
+        # Dataset exists
+        return MovieResponse(
+            content_id="dataset_exists",
+            title="Dataset Ready",
+            description=f"The dataset is already available with {len(content_items)} content items.",
+            genres=["ready"],
+            year=2025
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error refreshing dataset: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to refresh dataset: {str(e)}"
         ) 

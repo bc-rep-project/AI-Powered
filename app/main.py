@@ -1,26 +1,14 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import auth, health, recommendations, external
+from .routes import auth, health, recommendations, external, data, dataset, admin
 from .core.config import settings
-from .database import init_db
+from .db.mongodb import mongodb
+from .db.redis import redis_client
+from .services.scheduler import init_scheduler, get_scheduler
 import logging
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
-
-# Import Redis and MongoDB with error handling
-try:
-    from .db.mongodb import mongodb
-except ImportError:
-    logger.warning("MongoDB module could not be imported. MongoDB features will be disabled.")
-    mongodb = None
-
-try:
-    from .db.redis import redis_client
-except ImportError:
-    logger.warning("Redis module could not be imported. Redis features will be disabled.")
-    redis_client = None
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -67,64 +55,57 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting up application...")
-    
-    # Create database tables if they don't exist
-    try:
-        logger.info("Creating database tables if they don't exist...")
-        init_db()
-    except Exception as e:
-        logger.error(f"Error creating database tables: {str(e)}")
-    
-    # Connect to MongoDB
-    if mongodb:
-        try:
-            await mongodb.connect()
-            logger.info("Connected to MongoDB")
-        except Exception as e:
-            logger.warning(f"Could not connect to MongoDB: {str(e)}")
-    
-    # Test Redis connection
-    if redis_client:
-        try:
-            await redis_client.ping()
-            logger.info("Connected to Redis")
-        except Exception as e:
-            logger.warning(f"Could not connect to Redis: {str(e)}")
-    
+    await mongodb.connect()
     logger.info(f"API Version: {settings.API_V1_STR}")
     logger.info(f"Environment: {'development' if 'localhost' in settings.FRONTEND_URL else 'production'}")
+    await redis_client.ping()  # Test Redis connection
+    logger.info("Connected to Redis")
+    
+    # Initialize and start the model retraining scheduler
+    try:
+        # Get retraining configuration from settings
+        retraining_interval = getattr(settings, "MODEL_RETRAINING_INTERVAL_HOURS", 12)
+        interaction_threshold = getattr(settings, "MODEL_RETRAINING_INTERACTION_THRESHOLD", 50)
+        dataset = getattr(settings, "DATASET_NAME", "movielens-small")
+        epochs = getattr(settings, "NUM_EPOCHS", 10)
+        batch_size = getattr(settings, "BATCH_SIZE", 64)
+        
+        # Initialize and start the scheduler
+        scheduler = init_scheduler(
+            retraining_interval_hours=retraining_interval,
+            interaction_threshold=interaction_threshold,
+            dataset=dataset,
+            epochs=epochs,
+            batch_size=batch_size
+        )
+        scheduler.start()
+        logger.info(f"Model retraining scheduler started with interval {retraining_interval} hours and threshold {interaction_threshold} interactions")
+    except Exception as e:
+        logger.error(f"Error starting model retraining scheduler: {str(e)}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Shutting down application...")
-    if mongodb:
-        try:
-            await mongodb.close()
-        except Exception as e:
-            logger.warning(f"Error closing MongoDB connection: {str(e)}")
     
-    if redis_client:
-        try:
-            await redis_client.close()
-        except Exception as e:
-            logger.warning(f"Error closing Redis connection: {str(e)}")
+    # Stop the scheduler if it's running
+    scheduler = get_scheduler()
+    if scheduler:
+        scheduler.stop()
+        logger.info("Model retraining scheduler stopped")
+    
+    await mongodb.close()
+    await redis_client.close()
 
 # Root endpoint for health check
 @app.get("/")
 async def root():
     return {"status": "healthy", "message": "AI Content Recommendation API"}
 
-# Health check endpoint that doesn't require database connections
-@app.get("/health")
-async def health_check():
-    return {
-        "status": "online",
-        "timestamp": datetime.now().isoformat(),
-        "version": getattr(settings, "VERSION", "1.0.0")
-    }
-
 # Include routers
-app.include_router(auth.router, prefix=settings.API_V1_STR)
-app.include_router(health.router, prefix=f"{settings.API_V1_STR}/health", tags=["health"])
+app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["auth"])
+app.include_router(health.router, prefix=settings.API_V1_STR, tags=["health"])
 app.include_router(recommendations.router, prefix=settings.API_V1_STR, tags=["recommendations"])
 app.include_router(external.router, prefix=settings.API_V1_STR, tags=["external"])
+app.include_router(data.router, prefix=settings.API_V1_STR, tags=["data"])
+app.include_router(dataset.router, prefix=settings.API_V1_STR, tags=["dataset"])
+app.include_router(admin.router, prefix=settings.API_V1_STR, tags=["admin"])
