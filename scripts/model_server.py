@@ -152,53 +152,35 @@ app.add_middleware(
 
 # Global model instance
 recommendation_model = None
-content_items = {}
+content_data = {}
 
 @app.on_event("startup")
 async def startup_event():
-    global recommendation_model, content_items
+    """Load model and content data on startup"""
+    global recommendation_model, content_data
     
-    # Create required directories
-    os.makedirs("data/raw", exist_ok=True)
-    os.makedirs("data/processed", exist_ok=True)
-    os.makedirs("models", exist_ok=True)
-    
-    # Get model path from environment or use default
     model_path = os.getenv("MODEL_PATH", "models/latest")
     content_path = os.getenv("CONTENT_PATH", "data/processed/movielens-small")
     
-    logger.info(f"Loading model from {model_path}")
+    # Load model
     try:
-        if os.path.exists(model_path):
-            recommendation_model = RecommendationModel.load(model_path)
-            logger.info(f"Model loaded successfully from {model_path}")
-        else:
-            logger.warning(f"Model path {model_path} does not exist, will serve fallback recommendations")
+        recommendation_model = RecommendationModel.load(model_path)
+        logger.info(f"Loaded recommendation model from {model_path}")
     except Exception as e:
         logger.error(f"Error loading model: {str(e)}")
-        logger.warning("Will serve fallback recommendations")
     
-    logger.info(f"Loading content from {content_path}")
+    # Load content data
     try:
-        # Try to load content files
-        content_file = os.path.join(content_path, "content_items.json")
-        if os.path.exists(content_file):
-            with open(content_file, "r") as f:
-                content_items = json.load(f)
-            logger.info(f"Loaded {len(content_items)} content items")
-        else:
-            # Check alternative paths
-            alt_file = os.path.join(content_path, "movies.json")
-            if os.path.exists(alt_file):
-                with open(alt_file, "r") as f:
-                    content_items = json.load(f)
-                logger.info(f"Loaded {len(content_items)} content items from alternative file")
-            else:
-                logger.warning(f"Content file not found at {content_file} or {alt_file}")
-                content_items = {}
+        with open(os.path.join(content_path, 'content_items.json'), 'r') as f:
+            content_items = json.load(f)
+            
+        # Create lookup dictionary
+        for item in content_items:
+            content_data[item['content_id']] = item
+            
+        logger.info(f"Loaded {len(content_data)} content items")
     except Exception as e:
-        logger.error(f"Error loading content: {str(e)}")
-        content_items = {}
+        logger.error(f"Error loading content data: {str(e)}")
 
 @app.get("/")
 async def root():
@@ -215,7 +197,7 @@ async def health_check():
     return {
         "status": "healthy",
         "model_loaded": recommendation_model is not None,
-        "content_items_loaded": len(content_items),
+        "content_items_loaded": len(content_data),
         "timestamp": datetime.now().isoformat()
     }
 
@@ -235,7 +217,7 @@ async def get_recommendations(request: RecommendationRequest):
         # Format response
         recommendation_items = []
         for content_id, score in recs:
-            content_info = content_items.get(content_id, {
+            content_info = content_data.get(content_id, {
                 "content_id": content_id,
                 "title": f"Content {content_id}",
                 "description": "No description available",

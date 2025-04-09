@@ -7,14 +7,26 @@ from .core.config import settings
 import logging
 import importlib
 import os
-from datetime import datetime
+import gc
+from datetime import datetime, timedelta
+import time
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 logger = logging.getLogger(__name__)
+
+# Create rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
+
+# Add rate limiter to the app
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 @app.middleware("http")
 async def global_error_handler(request: Request, call_next):
@@ -144,6 +156,29 @@ async def shutdown_event():
 @app.get("/")
 async def root():
     return {"status": "healthy", "message": "AI Content Recommendation API"}
+
+# Simple ping endpoint to keep the app alive
+@app.get("/ping")
+@limiter.limit("10/minute")
+async def ping(request: Request):
+    """Simple endpoint for keeping the app alive. Can be pinged by an external service."""
+    gc.collect()  # Run garbage collection to free memory
+    memory_info = {}
+    try:
+        import psutil
+        process = psutil.Process(os.getpid())
+        memory_info = {
+            "memory_percent": process.memory_percent(),
+            "memory_mb": process.memory_info().rss / 1024 / 1024
+        }
+    except ImportError:
+        memory_info = {"message": "psutil not available"}
+    
+    return {
+        "status": "alive", 
+        "timestamp": datetime.now().isoformat(),
+        "memory": memory_info
+    }
 
 # Direct health check endpoint (without API prefix)
 @app.get("/health")

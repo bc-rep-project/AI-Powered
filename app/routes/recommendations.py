@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 import logging
@@ -11,10 +11,6 @@ from app.core.auth import get_current_user
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.interaction import InteractionDB
-from app.core.config import settings
-from app.db.mongodb import mongodb
-import random
-import tensorflow as tf
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -44,77 +40,75 @@ class RecommendationResponse(BaseModel):
 # Global model variable
 recommendation_model = None
 
-# Global variable for caching the model
-_model = None
-
-# Global variable for caching content items
-_content_items = None
-_content_items_last_loaded = None
-
 # Function to load the model
 def load_model():
-    """Load the TensorFlow recommendation model."""
-    model_path = os.path.join(os.getcwd(), settings.MODEL_PATH)
-    if not os.path.exists(model_path):
-        logger.warning(f"Model path {model_path} does not exist.")
-        return None
+    global recommendation_model
     
     try:
-        logger.info(f"Loading model from {model_path}")
-        model = tf.saved_model.load(model_path)
-        return model
-    except Exception as e:
+        if recommendation_model is not None:
+            return recommendation_model
+            
+        # Import RecommendationModel from train_model.py
+        sys.path.append('.')
+        try:
+            from scripts.train_model import RecommendationModel
+        except ImportError:
+            try:
+                # Try to import from the specific location
+                sys.path.append('./scripts')
+                from train_model import RecommendationModel
+            except ImportError:
+                logger.error("Could not import RecommendationModel. Make sure scripts/train_model.py exists.")
+                return None
+        
+        # Check if model path exists
+        if not os.path.exists(MODELS_PATH):
+            logger.warning(f"Model path {MODELS_PATH} does not exist.")
+            return None
+            
+        # Load the model
+        logger.info(f"Loading model from {MODELS_PATH}")
+        recommendation_model = RecommendationModel.load(MODELS_PATH)
+        logger.info("Model loaded successfully")
+        
+        return recommendation_model
+except Exception as e:
         logger.error(f"Error loading model: {str(e)}")
         return None
 
 # Function to load content items
 def get_content_items():
-    """Get content items from file or MongoDB."""
-    global _content_items, _content_items_last_loaded
-    
-    # Try to get from MongoDB first if available
-    if mongodb is not None:
-        try:
-            # If the collection exists and has data, return it
-            if hasattr(mongodb, 'content_items'):
-                count = mongodb.content_items.count_documents({})
-                if count > 0:
-                    logger.info(f"Getting {count} content items from MongoDB")
-                    items = {}
-                    cursor = mongodb.content_items.find({})
-                    for doc in cursor:
-                        items[doc['content_id']] = doc
-                    return items
-        except Exception as e:
-            logger.error(f"Error getting content items from MongoDB: {str(e)}")
-    
-    # Fallback to file
-    content_path = os.path.join(os.getcwd(), settings.CONTENT_PATH, 'content_items.json')
-    
-    # If path doesn't exist, try getting from data directory
-    if not os.path.exists(content_path):
-        logger.error(f"Could not find content items file in {settings.CONTENT_PATH}")
-        
-        # Try alternative paths
-        alt_path = os.path.join(os.getcwd(), 'data', 'processed', 'movielens-small', 'content_items.json')
-        if os.path.exists(alt_path):
-            content_path = alt_path
-            logger.info(f"Found content items at alternative path: {alt_path}")
-        else:
-            # Return empty dict as fallback
-            return {}
-    
     try:
+        content_path = os.path.join(CONTENT_PATH, 'movies.json')
+        if not os.path.exists(content_path):
+            # Try alternative paths
+            alt_paths = [
+                os.path.join(CONTENT_PATH, 'content_items.json'),
+                os.path.join(CONTENT_PATH, 'sample', 'movies.json'),
+                os.path.join(CONTENT_PATH, 'sample', 'content_items.json')
+            ]
+            
+            for path in alt_paths:
+                if os.path.exists(path):
+                    content_path = path
+                    break
+            else:
+                logger.error(f"Could not find content items file in {CONTENT_PATH}")
+                return []
+        
         with open(content_path, 'r') as f:
             return json.load(f)
     except Exception as e:
         logger.error(f"Error loading content items: {str(e)}")
-        return {}
+        return []
 
 # Function to get content item by ID
 def get_content_item(content_id):
     content_items = get_content_items()
-    return content_items.get(content_id)
+    for item in content_items:
+        if str(item.get("content_id")) == str(content_id):
+            return item
+    return None
 
 @router.get("/", response_model=RecommendationResponse)
 async def get_recommendations(
@@ -123,137 +117,231 @@ async def get_recommendations(
     user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Get personalized recommendations for the logged-in user.
-    
-    If no interactions are found, returns popular items as recommendations.
-    """
-    global _model
-    
-    user_id = user.id
-    
-    # Try to load content items
-    content_items = get_content_items()
-    if not content_items:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to load content items"
-        )
-    
-    # Try to load the model if not already loaded
-    if _model is None:
-        _model = load_model()
-    
-    # If we have a model and user interactions, generate personalized recommendations
-    if _model is not None:
-        try:
-            # Get user interactions from MongoDB if available
-            user_interactions = []
-            if mongodb is not None and hasattr(mongodb, 'user_interactions'):
-                interactions_cursor = mongodb.user_interactions.find({"user_id": user_id})
-                for doc in interactions_cursor:
-                    user_interactions.append(doc)
+    """Get personalized recommendations for the logged-in user"""
+    try:
+        # Load the model if it's not already loaded
+        model = load_model()
+        model_version = "latest"
+        
+        # Load content items
+        content_items = get_content_items()
+        if not content_items:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to load content items"
+            )
             
-            if user_interactions:
-                # Generate recommendations using the model
-                logger.info(f"Generating personalized recommendations for user {user_id}")
+        content_dict = {str(item["content_id"]): item for item in content_items}
+        
+        if model is None:
+            # Use fallback recommendation strategy based on popularity
+            logger.warning("Model not loaded, using fallback recommendations")
+            
+            # Get all interactions and count them by content_id
+            interactions = db.query(InteractionDB).all()
+            
+            # Count occurrences of each content_id
+            content_counts = {}
+            for interaction in interactions:
+                content_id = str(interaction.content_id)
+                if content_id not in content_counts:
+                    content_counts[content_id] = 0
+                content_counts[content_id] += 1
+            
+            # Sort by count (popularity)
+            sorted_content = sorted(content_counts.items(), key=lambda x: x[1], reverse=True)
+            
+            # Filter by genre if specified
+            recommendations = []
+            for content_id, count in sorted_content:
+                if len(recommendations) >= limit:
+                    break
+                    
+                # Get content item
+                content_item = content_dict.get(content_id)
+                if content_item is None:
+                    continue
+                    
+                # Check genre filter
+                if genre and genre not in content_item.get("genres", []):
+                    continue
+                    
+                # Add to recommendations
+                recommendations.append(RecommendationItem(
+                    content_id=content_id,
+                    title=content_item.get("title", "Unknown"),
+                    description=content_item.get("description", ""),
+                    genres=content_item.get("genres", []),
+                    year=content_item.get("year"),
+                    score=0.5  # Default score for fallback recommendations
+                ))
+            
+            # If we don't have enough recommendations, add random ones
+            if len(recommendations) < limit:
+                # Get content IDs we already have
+                existing_content_ids = {rec.content_id for rec in recommendations}
                 
-                # This is a simplified example - in a real app you'd use the model API
-                try:
-                    # Get content IDs the user has interacted with
-                    interacted_content_ids = [interaction["content_id"] for interaction in user_interactions]
+                # Add random content
+                import random
+                random_items = random.sample(content_items, min(limit*2, len(content_items)))
+                
+                for item in random_items:
+                    if len(recommendations) >= limit:
+                        break
+                        
+                    content_id = str(item["content_id"])
                     
-                    # Get recommendations from model
-                    # This is just a placeholder - your model API might be different
-                    recommendations = _model.recommend(
-                        user_id=user_id,
-                        exclude_items=interacted_content_ids,
-                        k=limit*2  # Get extra for filtering
-                    )
-                    
-                    # Process recommendations
-                    rec_items = []
-                    for content_id, score in recommendations:
-                        item = get_content_item(content_id)
-                        if item:
-                            # Apply genre filter if specified
-                            if genre and genre not in item.get("genres", []):
-                                continue
-                                
-                            rec_items.append(
-                                RecommendationItem(
-                                    content_id=content_id,
-                                    title=item.get("title", ""),
-                                    description=item.get("description", ""),
-                                    genres=item.get("genres", []),
-                                    year=item.get("year"),
-                                    score=float(score)
-                                )
-                            )
-                            
-                            if len(rec_items) >= limit:
-                                break
-                    
-                    return RecommendationResponse(
-                        user_id=user_id,
-                        recommendations=rec_items,
-                        model_version=os.path.basename(settings.MODEL_PATH),
-                        message="Personalized recommendations based on your history"
-                    )
-                except Exception as e:
-                    logger.error(f"Error generating personalized recommendations: {str(e)}")
-                    # Fall through to popularity-based recommendations
+                    # Skip if already in recommendations
+                    if content_id in existing_content_ids:
+                        continue
+                        
+                    # Check genre filter
+                    if genre and genre not in item.get("genres", []):
+                        continue
+                        
+                    # Add to recommendations
+                    recommendations.append(RecommendationItem(
+                        content_id=content_id,
+                        title=item.get("title", "Unknown"),
+                        description=item.get("description", ""),
+                        genres=item.get("genres", []),
+                        year=item.get("year"),
+                        score=0.4  # Lower score for random recommendations
+                    ))
             
-            # If no user interactions or error, fall back to popularity-based recommendations
-            logger.info("Falling back to popularity-based recommendations")
-        except Exception as e:
-            logger.error(f"Error in recommendation generation: {str(e)}")
-            # Fall through to popularity-based recommendations
-    
-    # Fallback: Get popular items sorted by popularity
-    logger.info("Generating popularity-based recommendations")
-    
-    # Extract all items into a list
-    all_items = list(content_items.values())
-    
-    # Sort by popularity (could be ratings count, views, etc.)
-    # This is just an example - your popularity metric might be different
-    popular_items = sorted(
-        all_items, 
-        key=lambda x: x.get("popularity", 0) if isinstance(x.get("popularity"), (int, float)) else 0,
-        reverse=True
-    )
-    
-    # Apply genre filter if specified
-    if genre:
-        popular_items = [item for item in popular_items if genre in item.get("genres", [])]
-    
-    # Limit number of items
-    popular_items = popular_items[:limit]
-    
-    # If there are still no items, return random items as last resort
-    if not popular_items and content_items:
-        logger.info("Falling back to random recommendations")
-        random_items = random.sample(list(content_items.values()), min(limit, len(content_items)))
-        popular_items = random_items
-    
-    # Create recommendation items
-    rec_items = []
-    for item in popular_items:
-        if isinstance(item, dict):
-            rec_items.append(
-                RecommendationItem(
-                    content_id=item.get("content_id", ""),
-                    title=item.get("title", ""),
+            return RecommendationResponse(
+                user_id=user.id,
+                recommendations=recommendations,
+                model_version="fallback",
+                message="Using fallback recommendations based on popularity"
+            )
+            
+        # Get user interactions from database
+        user_interactions = db.query(InteractionDB).filter(
+            InteractionDB.user_id == user.id
+        ).all()
+        
+        # If user has no interactions, use fallback
+        if not user_interactions:
+            logger.warning(f"User {user.id} has no interactions, using fallback")
+            
+            # Get popular content (most viewed items)
+            recommendations = []
+            
+            # Sort by popularity if available, otherwise just take first items
+            if hasattr(content_items[0], "popularity"):
+                sorted_items = sorted(content_items, key=lambda x: x.get("popularity", 0), reverse=True)
+            else:
+                sorted_items = content_items
+                
+            for item in sorted_items:
+                # Skip if we already have enough recommendations
+                if len(recommendations) >= limit:
+                    break
+                    
+                content_id = str(item["content_id"])
+                
+                # Check genre filter
+                if genre and genre not in item.get("genres", []):
+                    continue
+                    
+                # Add to recommendations
+                recommendations.append(RecommendationItem(
+                    content_id=content_id,
+                    title=item.get("title", "Unknown"),
                     description=item.get("description", ""),
                     genres=item.get("genres", []),
                     year=item.get("year"),
-                    score=float(item.get("popularity", 0)) if isinstance(item.get("popularity"), (int, float)) else 0.0
-                )
+                    score=0.5  # Default score for fallback
+                ))
+            
+            return RecommendationResponse(
+                user_id=user.id,
+                recommendations=recommendations,
+                model_version="fallback",
+                message="Using fallback recommendations (no user interactions)"
             )
-    
-    return RecommendationResponse(
-        user_id=user_id,
-        recommendations=rec_items,
-        message="Popular content recommendations"
-    ) 
+        
+        # Use the model to get recommendations
+        try:
+            # Get recommendations from model
+            recs = model.get_recommendations(user.id, top_k=limit*2)  # Get extra for filtering
+            
+            # Filter and format recommendations
+            recommendations = []
+            for content_id, score in recs:
+                # Skip if we already have enough recommendations
+                if len(recommendations) >= limit:
+                    break
+                    
+                # Get content item
+                content_id = str(content_id)
+                content_item = content_dict.get(content_id)
+                if content_item is None:
+                    continue
+                    
+                # Check genre filter
+                if genre and genre not in content_item.get("genres", []):
+                    continue
+                    
+                # Add to recommendations
+                recommendations.append(RecommendationItem(
+                    content_id=content_id,
+                    title=content_item.get("title", "Unknown"),
+                    description=content_item.get("description", ""),
+                    genres=content_item.get("genres", []),
+                    year=content_item.get("year"),
+                    score=float(score)
+                ))
+            
+            # If we don't have enough recommendations after filtering, add popular ones
+            if len(recommendations) < limit:
+                logger.warning(f"Not enough recommendations after filtering, adding popular ones")
+                
+                # Get content IDs we already have
+                existing_content_ids = {rec.content_id for rec in recommendations}
+                
+                # Add popular content
+                for item in content_items:
+                    if len(recommendations) >= limit:
+                        break
+                        
+                    content_id = str(item["content_id"])
+                    
+                    # Skip if already in recommendations
+                    if content_id in existing_content_ids:
+                        continue
+                        
+                    # Check genre filter
+                    if genre and genre not in item.get("genres", []):
+                        continue
+                        
+                    # Add to recommendations
+                    recommendations.append(RecommendationItem(
+                        content_id=content_id,
+                        title=item.get("title", "Unknown"),
+                        description=item.get("description", ""),
+                        genres=item.get("genres", []),
+                        year=item.get("year"),
+                        score=0.4  # Lower score for fallback
+                    ))
+            
+            return RecommendationResponse(
+                user_id=user.id,
+                recommendations=recommendations,
+                model_version=model_version
+            )
+        except Exception as e:
+            logger.error(f"Error getting model recommendations: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to get recommendations: {str(e)}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in recommendations: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate recommendations"
+        ) 
