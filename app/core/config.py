@@ -1,6 +1,7 @@
 import sys
 import logging
 import subprocess
+import os
 
 # Try to import pydantic_settings
 try:
@@ -166,7 +167,12 @@ class Settings(BaseSettings):
     )
     
     class Config:
-        env_file = ".env"
+        # Set env_file only if it exists to avoid warnings
+        env_file = ".env" if os.path.isfile(".env") else None
+        env_file_encoding = "utf-8"
         case_sensitive = True
+        # Make the .env file optional to avoid warnings in production
+        extra = "ignore"  
+        validate_assignment = True
 
 settings = Settings()
