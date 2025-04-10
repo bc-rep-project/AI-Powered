@@ -58,35 +58,90 @@ async def get_current_user(
     db: Session = Depends(get_db)
 ):
     """Get current user from JWT token."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    if not token:
+        logger.warning("Missing authentication token")
+        raise credentials_exception
+        
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        # Log token details for debugging (not in production)
+        if not settings.TOKEN_DEBUG:
+            logger.debug(f"Processing authentication token")
+        else:
+            logger.debug(f"Processing token: {token[:10]}...")
+        
+        # Decode the token
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        except JWTError as e:
+            logger.warning(f"JWT decode error: {str(e)}")
+            raise credentials_exception
+            
+        # Extract subject (email)
         email: str = payload.get("sub")
         if not email:
+            logger.warning("Token missing 'sub' claim")
             raise credentials_exception
         
-        # Only check Redis blacklist if Redis client is available
+        # Check token expiration explicitly
+        exp = payload.get("exp")
+        if not exp or datetime.fromtimestamp(exp) < datetime.utcnow():
+            logger.warning(f"Token expired: {email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Check Redis blacklist if available
         if redis_client:
             try:
                 redis = await get_redis()
                 if redis and await redis.exists(f"blacklist:{token}"):
+                    logger.warning(f"Token blacklisted: {email}")
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="Token has been revoked"
+                        detail="Token has been revoked",
+                        headers={"WWW-Authenticate": "Bearer"},
                     )
             except Exception as e:
                 # If Redis check fails, log but continue
-                print(f"Redis check failed: {str(e)}")
+                logger.error(f"Redis blacklist check failed: {str(e)}")
         
-        user = await get_user_by_email(db, email)
-        if not user:
+        # Get user from database
+        try:
+            user = await get_user_by_email(db, email)
+            if not user:
+                logger.warning(f"User not found: {email}")
+                raise credentials_exception
+                
+            # Check if user is active
+            if not getattr(user, 'is_active', True):
+                logger.warning(f"Inactive user: {email}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="User account is disabled",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+                
+            return user
+        except Exception as e:
+            logger.error(f"Database error retrieving user {email}: {str(e)}")
             raise credentials_exception
-        return user
-    except JWTError as e:
+            
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in authentication: {str(e)}", exc_info=True)
         raise credentials_exception
 
 async def authenticate_user(db, email: str, password: str):

@@ -156,6 +156,7 @@ class Settings(BaseSettings):
         env="SECRET_KEY"
     )
     ALGORITHM: str = "HS256"
+    TOKEN_DEBUG: bool = Field(False, env="TOKEN_DEBUG")
     
     # Wikipedia Configuration
     WIKI_CACHE_TTL: int = Field(
