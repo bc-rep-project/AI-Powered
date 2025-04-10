@@ -72,7 +72,7 @@ def load_model():
         logger.info("Model loaded successfully")
         
         return recommendation_model
-except Exception as e:
+    except Exception as e:
         logger.error(f"Error loading model: {str(e)}")
         return None
 
@@ -176,39 +176,6 @@ async def get_recommendations(
                     score=0.5  # Default score for fallback recommendations
                 ))
             
-            # If we don't have enough recommendations, add random ones
-            if len(recommendations) < limit:
-                # Get content IDs we already have
-                existing_content_ids = {rec.content_id for rec in recommendations}
-                
-                # Add random content
-                import random
-                random_items = random.sample(content_items, min(limit*2, len(content_items)))
-                
-                for item in random_items:
-                    if len(recommendations) >= limit:
-                        break
-                        
-                    content_id = str(item["content_id"])
-                    
-                    # Skip if already in recommendations
-                    if content_id in existing_content_ids:
-                        continue
-                        
-                    # Check genre filter
-                    if genre and genre not in item.get("genres", []):
-                        continue
-                        
-                    # Add to recommendations
-                    recommendations.append(RecommendationItem(
-                        content_id=content_id,
-                        title=item.get("title", "Unknown"),
-                        description=item.get("description", ""),
-                        genres=item.get("genres", []),
-                        year=item.get("year"),
-                        score=0.4  # Lower score for random recommendations
-                    ))
-            
             return RecommendationResponse(
                 user_id=user.id,
                 recommendations=recommendations,
@@ -216,132 +183,13 @@ async def get_recommendations(
                 message="Using fallback recommendations based on popularity"
             )
             
-        # Get user interactions from database
-        user_interactions = db.query(InteractionDB).filter(
-            InteractionDB.user_id == user.id
-        ).all()
-        
-        # If user has no interactions, use fallback
-        if not user_interactions:
-            logger.warning(f"User {user.id} has no interactions, using fallback")
-            
-            # Get popular content (most viewed items)
-            recommendations = []
-            
-            # Sort by popularity if available, otherwise just take first items
-            if hasattr(content_items[0], "popularity"):
-                sorted_items = sorted(content_items, key=lambda x: x.get("popularity", 0), reverse=True)
-            else:
-                sorted_items = content_items
-                
-            for item in sorted_items:
-                # Skip if we already have enough recommendations
-                if len(recommendations) >= limit:
-                    break
-                    
-                content_id = str(item["content_id"])
-                
-                # Check genre filter
-                if genre and genre not in item.get("genres", []):
-                    continue
-                    
-                # Add to recommendations
-                recommendations.append(RecommendationItem(
-                    content_id=content_id,
-                    title=item.get("title", "Unknown"),
-                    description=item.get("description", ""),
-                    genres=item.get("genres", []),
-                    year=item.get("year"),
-                    score=0.5  # Default score for fallback
-                ))
-            
-            return RecommendationResponse(
-                user_id=user.id,
-                recommendations=recommendations,
-                model_version="fallback",
-                message="Using fallback recommendations (no user interactions)"
-            )
-        
-        # Use the model to get recommendations
-        try:
-            # Get recommendations from model
-            recs = model.get_recommendations(user.id, top_k=limit*2)  # Get extra for filtering
-            
-            # Filter and format recommendations
-            recommendations = []
-            for content_id, score in recs:
-                # Skip if we already have enough recommendations
-                if len(recommendations) >= limit:
-                    break
-                    
-                # Get content item
-                content_id = str(content_id)
-                content_item = content_dict.get(content_id)
-                if content_item is None:
-                    continue
-                    
-                # Check genre filter
-                if genre and genre not in content_item.get("genres", []):
-                    continue
-                    
-                # Add to recommendations
-                recommendations.append(RecommendationItem(
-                    content_id=content_id,
-                    title=content_item.get("title", "Unknown"),
-                    description=content_item.get("description", ""),
-                    genres=content_item.get("genres", []),
-                    year=content_item.get("year"),
-                    score=float(score)
-                ))
-            
-            # If we don't have enough recommendations after filtering, add popular ones
-            if len(recommendations) < limit:
-                logger.warning(f"Not enough recommendations after filtering, adding popular ones")
-                
-                # Get content IDs we already have
-                existing_content_ids = {rec.content_id for rec in recommendations}
-                
-                # Add popular content
-                for item in content_items:
-                    if len(recommendations) >= limit:
-                        break
-                        
-                    content_id = str(item["content_id"])
-                    
-                    # Skip if already in recommendations
-                    if content_id in existing_content_ids:
-                        continue
-                        
-                    # Check genre filter
-                    if genre and genre not in item.get("genres", []):
-                        continue
-                        
-                    # Add to recommendations
-                    recommendations.append(RecommendationItem(
-                        content_id=content_id,
-                        title=item.get("title", "Unknown"),
-                        description=item.get("description", ""),
-                        genres=item.get("genres", []),
-                        year=item.get("year"),
-                        score=0.4  # Lower score for fallback
-                    ))
-            
-            return RecommendationResponse(
-                user_id=user.id,
-                recommendations=recommendations,
-                model_version=model_version
-            )
-        except Exception as e:
-            logger.error(f"Error getting model recommendations: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to get recommendations: {str(e)}"
-            )
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error in recommendations: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate recommendations"
-        ) 
+        return RecommendationResponse(
+            user_id=user.id,
+            recommendations=[],
+            model_version="error",
+            message=f"Error generating recommendations: {str(e)}"
+        )
