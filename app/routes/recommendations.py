@@ -52,7 +52,7 @@ async def load_model_metadata():
         if os.path.exists(MODEL_METADATA_FILE):
             with open(MODEL_METADATA_FILE, 'r') as f:
                 return json.load(f)
-    except Exception as e:
+except Exception as e:
         logger.error(f"Error loading model metadata: {str(e)}")
     
     return None

@@ -69,6 +69,20 @@ app.add_middleware(
 async def startup_event():
     logger.info("Starting up application...")
     
+    # Start the Render optimizer for free tier
+    try:
+        from .utils.render_optimizer import start_render_optimizer, get_render_info
+        optimizer_started = start_render_optimizer()
+        if optimizer_started:
+            render_info = get_render_info()
+            logger.info(f"Render optimizer started for free tier environment: {render_info}")
+        else:
+            logger.info("Render optimizer not needed for this environment")
+    except ImportError:
+        logger.warning("Render optimizer module not available")
+    except Exception as e:
+        logger.error(f"Error starting Render optimizer: {str(e)}")
+    
     # Import modules with safe error handling
     try:
         from .db.mongodb import mongodb
@@ -96,11 +110,11 @@ async def startup_event():
         from .services.scheduler import init_scheduler, get_scheduler
         
         # Get retraining configuration from settings
-        retraining_interval = getattr(settings, "MODEL_RETRAINING_INTERVAL_HOURS", 12)
-        interaction_threshold = getattr(settings, "MODEL_RETRAINING_INTERACTION_THRESHOLD", 50)
-        dataset = getattr(settings, "DATASET_NAME", "movielens-small")
-        epochs = getattr(settings, "NUM_EPOCHS", 10)
-        batch_size = getattr(settings, "BATCH_SIZE", 64)
+        retraining_interval = getattr(settings, "MODEL_RETRAINING_INTERVAL_HOURS", 72)
+        interaction_threshold = getattr(settings, "MODEL_RETRAINING_INTERACTION_THRESHOLD", 200)
+        dataset = getattr(settings, "DATASET_SIZE", "small")
+        epochs = getattr(settings, "NUM_EPOCHS", 3)
+        batch_size = getattr(settings, "BATCH_SIZE", 8)
         
         # Initialize and start the scheduler
         scheduler = init_scheduler(

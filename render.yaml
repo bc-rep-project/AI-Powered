@@ -5,20 +5,32 @@ services:
     region: ohio
     plan: free
     buildCommand: >
-      pip install --upgrade pip &&
+      # Create necessary directories
+      mkdir -p data/raw data/processed models logs && 
+      # Install core system dependencies
+      python -m pip install --upgrade pip && 
+      # Install lighter versions of heavy dependencies first
+      pip install "numpy<2.0.0" "pandas<2.0.0" "scikit-learn<2.0.0" && 
+      # Install required authentication packages
       pip install PyJWT>=2.4.0 python-jose>=3.3.0 passlib>=1.7.4 python-multipart>=0.0.5 &&
+      # Install API framework
       pip install fastapi>=0.100.0 uvicorn>=0.18.0 pydantic>=2.0.0 pydantic-settings>=2.0.0 email-validator>=2.0.0 &&
+      # Install database connectors
       pip install "sqlalchemy[asyncio]>=1.4.0" psycopg2-binary>=2.9.3 &&
+      # Install Redis with optimized settings
       pip install redis>=4.2.0 &&
+      # Install system monitoring
       pip install psutil>=5.9.0 &&
+      # Install remaining packages
       pip install -r requirements.txt &&
-      mkdir -p data/raw data/processed models &&
+      # Verify imports
       echo "Checking for critical directories and files..." &&
       ls -la app/ &&
       echo "Verifying imports..." &&
       python -c "import fastapi; import pydantic; import pydantic_settings; import psutil; import PyJWT; print('All critical imports verified')" &&
-      python app/setup_app.py
-    startCommand: cd app && uvicorn main:app --host 0.0.0.0 --port $PORT
+      # Setup the application with specific free tier flags
+      RENDER_FREE_TIER=1 FREE_TIER_MODE=true python app/setup_app.py
+    startCommand: cd app && RENDER_FREE_TIER=1 FREE_TIER_MODE=true uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --timeout-keep-alive 65 --limit-concurrency 20 --backlog 50
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
@@ -27,8 +39,35 @@ services:
       - key: CONTENT_PATH
         value: data/processed/movielens-small
       - key: LOG_LEVEL
-        value: DEBUG
-    healthCheckPath: /api/v1/health
+        value: INFO
+      - key: FREE_TIER_MODE
+        value: true
+      - key: MAX_MEMORY_PERCENT
+        value: 75
+      - key: MAX_CPU_PERCENT
+        value: 70
+      - key: WORKER_TIMEOUT
+        value: 120
+      - key: BACKGROUND_WORKER_COUNT
+        value: 1
+      - key: ENABLE_MEMORY_OPTIMIZATION
+        value: true
+      - key: SAMPLE_RATIO
+        value: 0.1
+      - key: DATA_PROCESSING_CHUNK_SIZE
+        value: 1000
+      - key: DATA_PROCESSING_SLEEP_SEC
+        value: 2
+      - key: DOWNLOAD_RETRY_COUNT
+        value: 3
+      - key: DOWNLOAD_TIMEOUT
+        value: 300
+      - key: BATCH_SIZE
+        value: 8
+      - key: EMBEDDING_DIM
+        value: 16
+    healthCheckPath: /health
+    autoDeploy: false
 
 databases:
   - name: ai-recommendation-db
