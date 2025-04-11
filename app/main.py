@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import auth, recommendations, external, data, dataset, admin
 from .routes import health as health_router  # Rename the import to avoid collision
+from .routes import training  # Import the training router
 from .core.config import settings
 import logging
 import importlib
@@ -13,6 +14,7 @@ import time
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +79,18 @@ async def startup_event():
             db_init_success = await init_db()
             if db_init_success:
                 logger.info("Database tables initialized successfully")
+                
+                # Run database migrations after initializing tables
+                try:
+                    from .db.database import engine
+                    from .db.migrations import run_all_migrations
+                    success_count, failure_count = await run_all_migrations(engine)
+                    if failure_count == 0:
+                        logger.info(f"All {success_count} database migrations completed successfully")
+                    else:
+                        logger.warning(f"Database migrations completed with {failure_count} failures out of {success_count + failure_count}")
+                except Exception as migration_err:
+                    logger.error(f"Error running database migrations: {str(migration_err)}")
             else:
                 logger.warning("Database tables initialization incomplete - some features may not work")
         except Exception as db_err:
@@ -106,6 +120,19 @@ async def startup_event():
                 logger.info("Connected to Redis")
         except Exception as e:
             logger.error(f"Redis connection error: {str(e)}")
+        
+        # Start job queue cleanup scheduler
+        try:
+            # Import the job queue module
+            importlib.import_module('.services.job_queue', package='app')
+            # Start the cleanup scheduler as a background task
+            from .services.job_queue import start_cleanup_scheduler
+            background_task = asyncio.create_task(start_cleanup_scheduler())
+            # Store task reference to prevent garbage collection
+            app.state.job_queue_task = background_task
+            logger.info("Started job queue cleanup scheduler")
+        except Exception as job_err:
+            logger.error(f"Error starting job queue cleanup scheduler: {str(job_err)}")
             
         # Configuration info
         logger.info(f"API Version: {settings.API_V1_STR}")
@@ -233,3 +260,10 @@ app.include_router(external.router, prefix=settings.API_V1_STR, tags=["external"
 app.include_router(data.router, prefix=settings.API_V1_STR, tags=["data"])
 app.include_router(dataset.router, prefix=settings.API_V1_STR, tags=["dataset"])
 app.include_router(admin.router, prefix=settings.API_V1_STR, tags=["admin"])
+
+# Add the training router last to avoid any routing conflicts
+try:
+    app.include_router(training.router, prefix=settings.API_V1_STR, tags=["training"])
+    logger.info("Training router added successfully")
+except Exception as e:
+    logger.error(f"Error adding training router: {str(e)}")

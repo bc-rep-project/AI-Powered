@@ -15,6 +15,7 @@ from app.models.interaction import InteractionDB, Interaction
 import pandas as pd
 import asyncio
 import time
+from pathlib import Path
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -369,29 +370,81 @@ async def get_job_status(
     job_id: str,
     user = Depends(get_current_user)
 ):
-    """Get the status of a background job"""
+    """Get status of a background job by ID"""
     try:
-        if job_id not in active_jobs:
+        # Try to get status from job queue service first
+        try:
+            from ..services.job_queue import get_job_status as get_queue_job_status
+            job_data = await get_queue_job_status(job_id)
+            
+            if job_data:
+                return DataProcessingResponse(
+                    status=job_data["status"],
+                    message=job_data["message"],
+                    job_id=job_data["job_id"],
+                    progress=job_data["progress"]
+                )
+        except ImportError:
+            # Job queue service not available, fall back to old implementation
+            logger.warning("Job queue service not available, falling back to legacy job tracking")
+        
+        # Legacy job status retrieval
+        job_status = {}
+        
+        # First, try to check for dataset jobs
+        if job_id.startswith("download_"):
+            from ..services.dataset_manager import get_dataset_status
+            job_status = await get_dataset_status(job_id)
+        # Then, try model training jobs
+        elif job_id.startswith("retrain_"):
+            from ..services.model_trainer import get_job_status as get_trainer_job_status
+            job_status = await get_trainer_job_status(job_id)
+        else:
+            # Check if it's any other type of job by examining the job_id pattern
+            if "_" in job_id:
+                job_type, timestamp = job_id.split("_", 1)
+                
+                if job_type == "train":
+                    from ..services.model_trainer import get_job_status as get_trainer_job_status
+                    job_status = await get_trainer_job_status(job_id)
+                elif job_type == "process":
+                    from ..services.dataset_manager import get_dataset_status
+                    job_status = await get_dataset_status(job_id)
+        
+        if not job_status:
+            # Check job status from job files
+            job_file = Path(f"data/jobs/{job_id}.json")
+            if job_file.exists():
+                try:
+                    with open(job_file, "r") as f:
+                        job_data = json.load(f)
+                    return DataProcessingResponse(
+                        status=job_data.get("status", "unknown"),
+                        message=job_data.get("message", "Job status loaded from file"),
+                        job_id=job_id,
+                        progress=job_data.get("progress", 0.0)
+                    )
+                except Exception as e:
+                    logger.error(f"Error loading job file: {str(e)}")
+            
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=404,
                 detail=f"Job with ID {job_id} not found"
             )
         
-        job_info = active_jobs[job_id]
-        
         return DataProcessingResponse(
-            status=job_info["status"],
-            message=job_info["message"],
+            status=job_status.get("status", "unknown"),
+            message=job_status.get("message", ""),
             job_id=job_id,
-            progress=job_info.get("progress")
+            progress=job_status.get("progress", 0.0)
         )
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting job status: {str(e)}")
+        logger.error(f"Error retrieving job status: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get job status: {str(e)}"
+            status_code=500,
+            detail=f"Failed to retrieve job status: {str(e)}"
         )
 
 @router.get("/models", response_model=List[ModelInfoResponse])
