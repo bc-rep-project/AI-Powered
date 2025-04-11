@@ -67,69 +67,71 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Starting up application...")
-    
-    # Start the Render optimizer for free tier
+    """Initialize application on startup"""
     try:
-        from .utils.render_optimizer import start_render_optimizer, get_render_info
-        optimizer_started = start_render_optimizer()
-        if optimizer_started:
-            render_info = get_render_info()
-            logger.info(f"Render optimizer started for free tier environment: {render_info}")
+        logger.info("Starting up application...")
+        
+        # Initialize database tables
+        try:
+            from .db.init_db import init_db
+            db_init_success = await init_db()
+            if db_init_success:
+                logger.info("Database tables initialized successfully")
+            else:
+                logger.warning("Database tables initialization incomplete - some features may not work")
+        except Exception as db_err:
+            logger.error(f"Error initializing database: {str(db_err)}")
+        
+        # Check for free tier optimizations
+        from .utils.render_optimizer import is_render_free_tier, start_render_optimizer
+        if is_render_free_tier():
+            logger.info("Running on Render free tier, starting optimizer")
+            start_render_optimizer()
         else:
             logger.info("Render optimizer not needed for this environment")
-    except ImportError:
-        logger.warning("Render optimizer module not available")
-    except Exception as e:
-        logger.error(f"Error starting Render optimizer: {str(e)}")
-    
-    # Import modules with safe error handling
-    try:
-        from .db.mongodb import mongodb
-        await mongodb.connect()
-        logger.info("Connected to MongoDB")
-    except ImportError:
-        logger.warning("MongoDB module not available")
-    except Exception as e:
-        logger.error(f"Error connecting to MongoDB: {str(e)}")
-    
-    try:
-        from .db.redis import redis_client
-        await redis_client.ping()
-        logger.info("Connected to Redis")
-    except ImportError:
-        logger.warning("Redis module not available")
-    except Exception as e:
-        logger.error(f"Error connecting to Redis: {str(e)}")
-    
-    logger.info(f"API Version: {settings.API_V1_STR}")
-    logger.info(f"Environment: {'development' if 'localhost' in settings.FRONTEND_URL else 'production'}")
-    
-    # Initialize and start the model retraining scheduler
-    try:
-        from .services.scheduler import init_scheduler, get_scheduler
+            
+        # Connect to MongoDB
+        try:
+            from .db.mongodb import mongodb
+            await mongodb.connect()
+            logger.info("Connected to MongoDB")
+        except Exception as e:
+            logger.error(f"MongoDB connection error: {str(e)}")
+            
+        # Check Redis connection
+        try:
+            from .db.redis import redis_client
+            if redis_client:
+                redis_client.ping()
+                logger.info("Connected to Redis")
+        except Exception as e:
+            logger.error(f"Redis connection error: {str(e)}")
+            
+        # Configuration info
+        logger.info(f"API Version: {settings.API_V1_STR}")
+        logger.info(f"Environment: {'production' if os.getenv('ENV') == 'production' else 'development'}")
         
-        # Get retraining configuration from settings
-        retraining_interval = getattr(settings, "MODEL_RETRAINING_INTERVAL_HOURS", 72)
-        interaction_threshold = getattr(settings, "MODEL_RETRAINING_INTERACTION_THRESHOLD", 200)
-        dataset = getattr(settings, "DATASET_SIZE", "small")
-        epochs = getattr(settings, "NUM_EPOCHS", 3)
-        batch_size = getattr(settings, "BATCH_SIZE", 8)
+        # Start model retraining scheduler
+        if os.getenv("ENABLE_AUTO_RETRAINING", "true").lower() == "true":
+            try:
+                from .services.scheduler import init_scheduler
+                
+                # Get config values or use defaults
+                interval_hours = int(os.getenv("MODEL_RETRAINING_INTERVAL_HOURS", "24"))
+                interaction_threshold = int(os.getenv("MODEL_RETRAINING_INTERACTION_THRESHOLD", "200"))
+                
+                # Start scheduler
+                scheduler = init_scheduler(
+                    retraining_interval_hours=interval_hours,
+                    interaction_threshold=interaction_threshold
+                )
+                scheduler.start()
+                logger.info(f"Model retraining scheduler started with interval {interval_hours} hours and threshold {interaction_threshold} interactions")
+            except Exception as e:
+                logger.error(f"Error starting model retraining scheduler: {str(e)}")
         
-        # Initialize and start the scheduler
-        scheduler = init_scheduler(
-            retraining_interval_hours=retraining_interval,
-            interaction_threshold=interaction_threshold,
-            dataset=dataset,
-            epochs=epochs,
-            batch_size=batch_size
-        )
-        scheduler.start()
-        logger.info(f"Model retraining scheduler started with interval {retraining_interval} hours and threshold {interaction_threshold} interactions")
-    except ImportError:
-        logger.warning("Scheduler module not available, model retraining will be disabled")
     except Exception as e:
-        logger.error(f"Error starting model retraining scheduler: {str(e)}")
+        logger.error(f"Error during application startup: {str(e)}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -169,7 +171,13 @@ async def shutdown_event():
 # Root endpoint for health check
 @app.get("/")
 async def root():
-    return {"status": "healthy", "message": "AI Content Recommendation API"}
+    """Root endpoint for health checks."""
+    return {
+        "status": "healthy",
+        "message": "AI Content Recommendation API",
+        "version": "1.0.0",
+        "docs_url": f"{settings.API_V1_STR}/docs"
+    }
 
 # Simple ping endpoint to keep the app alive
 @app.get("/ping")
@@ -196,20 +204,24 @@ async def ping(request: Request):
 
 # Direct health check endpoint (without API prefix)
 @app.get("/health")
-async def health_check():
-    """Basic health check endpoint that matches the one in the health router but is available without the API prefix"""
+async def health():
+    """Direct health check endpoint (no API prefix)."""
     try:
+        # Try to call the API health check
         from .routes.health import health_check
         return await health_check()
     except Exception as e:
+        # Log the error but return a degraded status
         logger.error(f"Health check error: {str(e)}")
+        
+        # Return a simple health status
         return {
             "status": "degraded",
             "version": "1.0.0",
             "timestamp": datetime.now().isoformat(),
-            "environment": "production" if os.getenv("ENV") == "production" else "development",
+            "environment": os.getenv("ENV", "development"),
             "resources": {
-                "message": "Error checking resources"
+                "message": "Health check encountered an error"
             }
         }
 

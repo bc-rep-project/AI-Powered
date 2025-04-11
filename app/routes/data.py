@@ -316,15 +316,35 @@ async def train_model(
 ):
     """Train a recommendation model on a dataset"""
     try:
+        # Check if dataset directories exist
+        data_dir = f"data/processed/{dataset_name}"
+        raw_dir = f"data/raw/{dataset_name}"
+        
+        # Create the necessary directories if they don't exist
+        os.makedirs(data_dir, exist_ok=True)
+        os.makedirs(raw_dir, exist_ok=True)
+        os.makedirs("models", exist_ok=True)
+        
         # Check if dataset is processed
         dataset_info = get_dataset_status(dataset_name)
+        
+        # If dataset is not processed, first try to download and process it
         if not dataset_info.is_processed:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Dataset {dataset_name} is not processed yet. Please download and process it first."
+            logger.info(f"Dataset {dataset_name} is not processed yet. Will download and process first.")
+            
+            # Generate job ID for download
+            download_job_id = f"download_{dataset_name}_{int(time.time())}"
+            
+            # Start download task
+            background_tasks.add_task(run_data_processor, dataset_name, download_job_id)
+            
+            return DataProcessingResponse(
+                status="processing_dataset",
+                message=f"Dataset {dataset_name} needs processing first. Started downloading and processing the dataset. You can train the model after this completes.",
+                job_id=download_job_id
             )
         
-        # Generate job ID
+        # Generate job ID for training
         job_id = f"train_model_{dataset_name}_{int(time.time())}"
         
         # Start background task
