@@ -1,5 +1,5 @@
 import logging
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Numeric, inspect
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Numeric, inspect, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from ..database import Base, get_db
@@ -60,9 +60,6 @@ async def init_db():
         # Create all tables
         logger.info("Creating database tables...")
         async with engine.begin() as conn:
-            # Import for Boolean type
-            from sqlalchemy import Boolean
-            
             # Check for existing tables
             inspector = inspect(conn)
             existing_tables = inspector.get_table_names()

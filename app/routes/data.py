@@ -393,8 +393,8 @@ async def get_job_status(
         
         # First, try to check for dataset jobs
         if job_id.startswith("download_"):
-            from ..services.dataset_manager import get_dataset_status
-            job_status = await get_dataset_status(job_id)
+            from ..services.dataset_manager import get_job_status as get_dataset_job_status
+            job_status = await get_dataset_job_status(job_id)
         # Then, try model training jobs
         elif job_id.startswith("retrain_"):
             from ..services.model_trainer import get_job_status as get_trainer_job_status
@@ -408,8 +408,8 @@ async def get_job_status(
                     from ..services.model_trainer import get_job_status as get_trainer_job_status
                     job_status = await get_trainer_job_status(job_id)
                 elif job_type == "process":
-                    from ..services.dataset_manager import get_dataset_status
-                    job_status = await get_dataset_status(job_id)
+                    from ..services.dataset_manager import get_job_status as get_dataset_job_status
+                    job_status = await get_dataset_job_status(job_id)
         
         if not job_status:
             # Check job status from job files

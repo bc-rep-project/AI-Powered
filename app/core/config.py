@@ -184,6 +184,18 @@ class Settings(BaseSettings):
         description="Redis database number"
     )
     
+    # Model paths (added to fix missing path errors)
+    MODEL_PATH: str = Field(
+        "models",
+        env="MODEL_PATH",
+        description="Path to model storage directory"
+    )
+    CONTENT_PATH: str = Field(
+        "data/processed",
+        env="CONTENT_PATH",
+        description="Path to processed content data"
+    )
+    
     # API Configuration
     API_V1_STR: str = "/api/v1"
     FRONTEND_URL: str = Field(

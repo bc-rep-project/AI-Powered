@@ -116,7 +116,14 @@ async def startup_event():
         try:
             from .db.redis import redis_client
             if redis_client:
-                redis_client.ping()
+                # Use the correct async syntax for Redis or handle synchronous client
+                if hasattr(redis_client, 'ping') and callable(redis_client.ping):
+                    # Try to determine if it's an async Redis client
+                    if asyncio.iscoroutinefunction(redis_client.ping):
+                        await redis_client.ping()
+                    else:
+                        # Handle synchronous Redis client
+                        redis_client.ping()
                 logger.info("Connected to Redis")
         except Exception as e:
             logger.error(f"Redis connection error: {str(e)}")
